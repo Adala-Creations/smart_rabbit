@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const session = await getServerSession(authOptions);
     
@@ -11,14 +11,53 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { searchParams } = new URL(req.url);
+    const rabbitryId = searchParams.get('rabbitryId');
+    const id = searchParams.get('id');
+
+    // When `id` is supplied return a single cage with rich rabbit details
+    if (id) {
+      const cage = await prisma.cage.findUnique({
+        where: { id },
+        include: {
+          rabbitry: {
+            include: { location: true },
+          },
+          rabbits: {
+            include: {
+              cage: true,
+              mother: true,
+              father: true,
+              weights: { orderBy: { measurementDate: 'desc' }, take: 5 },
+              offspring: true,
+              matingsAsBuck: true,
+              matingsAsDoe: true,
+            },
+            orderBy: { createdAt: 'desc' },
+          },
+        },
+      });
+      return NextResponse.json(cage);
+    }
+
+    const where: any = {};
+    if (rabbitryId) where.rabbitryId = rabbitryId;
+
     const cages = await prisma.cage.findMany({
+      where,
       include: {
         rabbitry: {
           include: {
             location: true,
           },
         },
-        rabbits: true,
+        rabbits: {
+          include: {
+            mother: true,
+            father: true,
+            weights: { orderBy: { measurementDate: 'desc' }, take: 1 },
+          },
+        },
       },
       orderBy: { cageId: 'asc' },
     });

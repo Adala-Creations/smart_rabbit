@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const session = await getServerSession(authOptions);
     
@@ -19,19 +19,57 @@ export async function GET() {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
+    const { searchParams } = new URL(req.url);
+    const pageParam = searchParams.get('page');
+    if (!pageParam) {
+      // old behavior: return full list for backwards compatibility
+      const locations = await prisma.location.findMany({
+        where: { userId: user.id },
+        include: {
+          rabbitries: {
+            include: {
+              cages: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+      return NextResponse.json(locations);
+    }
+
+    const page = parseInt(pageParam ?? '1');
+    const perPage = parseInt(searchParams.get('perPage') ?? '10');
+    const sort = (searchParams.get('sort') ?? 'createdAt_desc') as
+      | 'createdAt_desc'
+      | 'name_asc'
+      | 'name_desc';
+
+    const skip = (page - 1) * perPage;
+
+    const where = { userId: user.id };
+
+    let orderBy: any = { createdAt: 'desc' };
+    if (sort === 'name_asc') orderBy = { name: 'asc' };
+    if (sort === 'name_desc') orderBy = { name: 'desc' };
+
+    const total = await prisma.location.count({ where });
+
     const locations = await prisma.location.findMany({
-      where: { userId: user.id },
+      where,
       include: {
         rabbitries: {
-          include: {
-            cages: true,
+          select: {
+            id: true,
+            name: true,
           },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy,
+      skip,
+      take: perPage,
     });
 
-    return NextResponse.json(locations);
+    return NextResponse.json({ items: locations, total });
   } catch (error) {
     console.error('Error fetching locations:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
