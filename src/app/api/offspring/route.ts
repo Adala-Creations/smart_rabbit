@@ -53,6 +53,12 @@ export async function POST(req: Request) {
       );
     }
 
+    // Prevent duplicate batches for the same birth
+    const existingBatch = await prisma.offspringBatch.findFirst({ where: { birthId } });
+    if (existingBatch) {
+      return NextResponse.json({ error: 'This birth already has an offspring batch' }, { status: 400 });
+    }
+
     // Auto-generate unique batch ID
     const lastBatch = await prisma.offspringBatch.findFirst({
       where: { batchId: { startsWith: 'BTC-' } },

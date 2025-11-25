@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import useFetchWithLoading from '@/hooks/useFetchWithLoading';
+import { useToast } from '@/components/ToastProvider';
 import {
   LineChart,
   Line,
@@ -18,6 +20,7 @@ import {
 } from 'recharts';
 
 export default function ReportsPage() {
+  const toast = useToast();
   const [reportType, setReportType] = useState('rabbits');
   // JSON export removed: format fixed to CSV for data downloads; Word export separate
   const format = 'csv';
@@ -43,17 +46,18 @@ export default function ReportsPage() {
   // Removed JSON export forcing logic; 'complete' report option also removed from UI
 
   // Load analysis datasets when analysis view activated
+  const fetchWithLoading = useFetchWithLoading();
   useEffect(() => {
     if (!showAnalysis) return;
     const load = async () => {
       try {
         const [birthRes, deathRes, offspringDeathRes, salesRes, expenseRes, rabbitsRes] = await Promise.all([
-          fetch('/api/births'),
-          fetch('/api/deaths'),
-          fetch('/api/offspring-deaths'),
-          fetch('/api/sales'),
-          fetch('/api/expenses'),
-          fetch('/api/rabbits'),
+          fetchWithLoading('/api/births'),
+          fetchWithLoading('/api/deaths'),
+          fetchWithLoading('/api/offspring-deaths'),
+          fetchWithLoading('/api/sales'),
+          fetchWithLoading('/api/expenses'),
+          fetchWithLoading('/api/rabbits'),
         ]);
         const births = birthRes.ok ? await birthRes.json() : [];
         const deaths = deathRes.ok ? await deathRes.json() : [];
@@ -208,7 +212,7 @@ export default function ReportsPage() {
         ...(dateTo && { dateTo }),
       });
 
-      const response = await fetch(`/api/reports?${params}`);
+      const response = await fetchWithLoading(`/api/reports?${params}`);
       
       if (!response.ok) {
         throw new Error('Failed to generate report');
@@ -225,7 +229,7 @@ export default function ReportsPage() {
       document.body.removeChild(a);
     } catch (error) {
       console.error('Error exporting data:', error);
-      alert('Failed to export data');
+      toast.pushToast({ message: 'Failed to export data', type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -255,7 +259,7 @@ export default function ReportsPage() {
       // Fetch data based on reportType (always JSON)
       let data: any[] | any = [];
       const fetchJson = async (url: string) => {
-        const res = await fetch(url); return res.ok ? res.json() : [];
+        const res = await fetchWithLoading(url); return res.ok ? res.json() : [];
       };
       switch (reportType) {
         case 'rabbits': data = await fetchJson('/api/rabbits'); break;
@@ -351,7 +355,7 @@ export default function ReportsPage() {
       document.body.removeChild(a);
     } catch (err) {
       console.error('Word report export failed', err);
-      alert('Failed to export Word report');
+      toast.pushToast({ message: 'Failed to export Word report', type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -461,7 +465,7 @@ export default function ReportsPage() {
       document.body.removeChild(a);
     } catch (err) {
       console.error('Word export failed', err);
-      alert('Failed to export Word document');
+      toast.pushToast({ message: 'Failed to export Word document', type: 'error' });
     }
   };
 
@@ -496,6 +500,7 @@ export default function ReportsPage() {
               <option value="matings">Mating Records</option>
               <option value="births">Birth Records</option>
               <option value="deaths">Death Records</option>
+              <option value="offspring-deaths">Offspring Death Records</option>
               <option value="sales">Sales Records</option>
               <option value="expenses">Expense Records</option>
               <option value="locations">Locations</option>

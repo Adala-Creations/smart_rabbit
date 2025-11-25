@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useToast } from '@/components/ToastProvider';
+import useFetchWithLoading from '@/hooks/useFetchWithLoading';
 import { useSession } from 'next-auth/react';
 
 interface UserProfile {
@@ -12,6 +14,7 @@ interface UserProfile {
 }
 
 export default function ProfilePage() {
+  const toast = useToast();
   const { data: session } = useSession();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -29,13 +32,14 @@ export default function ProfilePage() {
   const [showTerminateConfirm, setShowTerminateConfirm] = useState(false);
   const [terminatePassword, setTerminatePassword] = useState('');
 
+  const fetchWithLoading = useFetchWithLoading();
   useEffect(() => {
     fetchProfile();
   }, []);
 
   const fetchProfile = async () => {
     try {
-      const response = await fetch('/api/profile');
+      const response = await fetchWithLoading('/api/profile');
       if (response.ok) {
         const data = await response.json();
         setProfile(data);
@@ -55,7 +59,7 @@ export default function ProfilePage() {
     setSaving(true);
 
     try {
-      const response = await fetch('/api/profile', {
+      const response = await fetchWithLoading('/api/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),
@@ -95,7 +99,7 @@ export default function ProfilePage() {
     setSaving(true);
 
     try {
-      const response = await fetch('/api/profile', {
+      const response = await fetchWithLoading('/api/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ currentPassword, newPassword }),
@@ -124,14 +128,14 @@ export default function ProfilePage() {
     setSaving(true);
 
     try {
-      const response = await fetch('/api/users', {
+      const response = await fetchWithLoading('/api/users', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: profile?.id, password: terminatePassword }),
       });
 
       if (response.ok) {
-        alert('Account terminated successfully. You will be signed out.');
+        toast.pushToast({ message: 'Account terminated successfully. You will be signed out.', type: 'success' });
         window.location.href = '/login';
       } else {
         const data = await response.json();

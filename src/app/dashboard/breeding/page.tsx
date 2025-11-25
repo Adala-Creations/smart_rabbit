@@ -1,8 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import useFetchWithLoading from '@/hooks/useFetchWithLoading';
+import { useToast } from '@/components/ToastProvider';
 
 export default function BreedingPage() {
+  const toast = useToast();
   const [matings, setMatings] = useState<any[]>([]);
   const [births, setBirths] = useState<any[]>([]);
   const [rabbits, setRabbits] = useState<any[]>([]);
@@ -29,6 +32,7 @@ export default function BreedingPage() {
     notes: '',
   });
 
+  const fetchWithLoading = useFetchWithLoading();
   useEffect(() => {
     fetchData();
   }, []);
@@ -36,9 +40,9 @@ export default function BreedingPage() {
   const fetchData = async () => {
     try {
       const [matRes, birthRes, rabRes] = await Promise.all([
-        fetch('/api/matings'),
-        fetch('/api/births'),
-        fetch('/api/rabbits'),
+        fetchWithLoading('/api/matings'),
+        fetchWithLoading('/api/births'),
+        fetchWithLoading('/api/rabbits'),
       ]);
 
       setMatings(await matRes.json());
@@ -55,7 +59,7 @@ export default function BreedingPage() {
       const url = editingMatingId ? `/api/matings?id=${editingMatingId}` : '/api/matings';
       const method = editingMatingId ? 'PUT' : 'POST';
 
-      const res = await fetch(url, {
+      const res = await fetchWithLoading(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(matingData),
@@ -91,12 +95,12 @@ export default function BreedingPage() {
   const handleMatingDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this mating record?')) return;
     try {
-      const res = await fetch(`/api/matings?id=${id}`, { method: 'DELETE' });
+      const res = await fetchWithLoading(`/api/matings?id=${id}`, { method: 'DELETE' });
       if (res.ok) {
         fetchData();
       } else {
         const data = await res.json();
-        alert(data.error || 'Failed to delete mating');
+        toast.pushToast({ message: data.error || 'Failed to delete mating', type: 'error' });
       }
     } catch (error) {
       console.error('Error deleting mating:', error);
@@ -122,7 +126,7 @@ export default function BreedingPage() {
         ? JSON.stringify({ id: editingBirthId, ...birthData })
         : JSON.stringify(birthData);
 
-      const res = await fetch(url, {
+      const res = await fetchWithLoading(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body,
@@ -162,12 +166,12 @@ export default function BreedingPage() {
   const handleBirthDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this birth record?')) return;
     try {
-      const res = await fetch(`/api/births?id=${id}`, { method: 'DELETE' });
+      const res = await fetchWithLoading(`/api/births?id=${id}`, { method: 'DELETE' });
       if (res.ok) {
         fetchData();
       } else {
         const data = await res.json();
-        alert(data.error || 'Failed to delete birth');
+        toast.pushToast({ message: data.error || 'Failed to delete birth', type: 'error' });
       }
     } catch (error) {
       console.error('Error deleting birth:', error);

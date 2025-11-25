@@ -18,7 +18,33 @@ export async function GET() {
       orderBy: { deathDate: 'desc' },
     });
 
-    return NextResponse.json(deaths);
+    // Compute age at death for each record
+    const formatted = deaths.map((d) => {
+      const dob = d.rabbit?.dateOfBirth;
+      const dd = d.deathDate;
+      let ageAtDeath = '-';
+      try {
+        if (dob && dd) {
+          const b = new Date(dob);
+          const de = new Date(dd);
+          if (!isNaN(b.getTime()) && !isNaN(de.getTime()) && de >= b) {
+            let years = de.getFullYear() - b.getFullYear();
+            let months = de.getMonth() - b.getMonth();
+            let days = de.getDate() - b.getDate();
+            if (days < 0) { months -= 1; const prevMonth = new Date(de.getFullYear(), de.getMonth(), 0).getDate(); days += prevMonth; }
+            if (months < 0) { years -= 1; months += 12; }
+            if (years > 0) ageAtDeath = `${years}y${months > 0 ? ` ${months}m` : ''}`;
+            else if (months > 0) ageAtDeath = `${months}m${days > 0 ? ` ${days}d` : ''}`;
+            else ageAtDeath = `${days}d`;
+          }
+        }
+      } catch (e) {
+        /* ignore */
+      }
+      return { ...d, ageAtDeath };
+    });
+
+    return NextResponse.json(formatted);
   } catch (error) {
     console.error('Error fetching deaths:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

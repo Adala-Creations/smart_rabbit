@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import useFetchWithLoading from '@/hooks/useFetchWithLoading';
+import { useToast } from '@/components/ToastProvider';
 import { useSession } from 'next-auth/react';
 
 interface User {
@@ -41,6 +43,7 @@ interface Worker {
 }
 
 export default function WorkersPage() {
+  const toast = useToast();
   const { data: session } = useSession();
   const [users, setUsers] = useState<User[]>([]);
   const [rabbitries, setRabbitries] = useState<Rabbitry[]>([]);
@@ -59,6 +62,7 @@ export default function WorkersPage() {
   const [generatedPassword, setGeneratedPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
+  const fetchWithLoading = useFetchWithLoading();
   useEffect(() => {
     fetchUsers();
     fetchRabbitries();
@@ -67,7 +71,7 @@ export default function WorkersPage() {
 
   const fetchUsers = async () => {
     try {
-      const res = await fetch('/api/users');
+      const res = await fetchWithLoading('/api/users');
       if (res.ok) {
         const data = await res.json();
         setUsers(data);
@@ -79,7 +83,7 @@ export default function WorkersPage() {
 
   const fetchRabbitries = async () => {
     try {
-      const res = await fetch('/api/rabbitries');
+      const res = await fetchWithLoading('/api/rabbitries');
       if (res.ok) {
         const data = await res.json();
         setRabbitries(data);
@@ -91,7 +95,7 @@ export default function WorkersPage() {
 
   const fetchWorkers = async () => {
     try {
-      const res = await fetch('/api/workers');
+      const res = await fetchWithLoading('/api/workers');
       if (res.ok) {
         const data = await res.json();
         setWorkers(data);
@@ -105,12 +109,12 @@ export default function WorkersPage() {
     e.preventDefault();
 
     if (!workerEmail) {
-      alert('Please enter worker email');
+      toast.pushToast({ message: 'Please enter worker email', type: 'error' });
       return;
     }
 
     try {
-      const res = await fetch('/api/workers', {
+      const res = await fetchWithLoading('/api/workers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -127,9 +131,9 @@ export default function WorkersPage() {
         if (data.generatedPassword) {
           setGeneratedPassword(data.generatedPassword);
           setShowPassword(true);
-          alert(`Worker account created! Password: ${data.generatedPassword}\n\nPlease save this password - it will not be shown again.`);
+          toast.pushToast({ message: `Worker account created! Password: ${data.generatedPassword}. Please save this password - it will not be shown again.`, type: 'success' });
         } else {
-          alert('Worker assigned successfully!');
+          toast.pushToast({ message: 'Worker assigned successfully!', type: 'success' });
         }
         
         setWorkerEmail('');
@@ -140,11 +144,11 @@ export default function WorkersPage() {
         fetchUsers();
       } else {
         const error = await res.json();
-        alert(error.error || 'Failed to add worker');
+        toast.pushToast({ message: error.error || 'Failed to add worker', type: 'error' });
       }
     } catch (error) {
       console.error('Error adding worker:', error);
-      alert('Error adding worker');
+      toast.pushToast({ message: 'Error adding worker', type: 'error' });
     }
   };
 
@@ -154,27 +158,27 @@ export default function WorkersPage() {
     }
 
     try {
-      const res = await fetch(`/api/workers?id=${id}`, {
+      const res = await fetchWithLoading(`/api/workers?id=${id}`, {
         method: 'DELETE',
       });
 
       if (res.ok) {
-        alert('Worker removed successfully!');
+        toast.pushToast({ message: 'Worker removed successfully!', type: 'success' });
         fetchWorkers();
         fetchUsers();
       } else {
         const error = await res.json();
-        alert(error.error || 'Failed to remove worker');
+        toast.pushToast({ message: error.error || 'Failed to remove worker', type: 'error' });
       }
     } catch (error) {
       console.error('Error removing worker:', error);
-      alert('Error removing worker');
+      toast.pushToast({ message: 'Error removing worker', type: 'error' });
     }
   };
 
   const handleUpdateUser = async (userId: string) => {
     try {
-      const res = await fetch('/api/users', {
+      const res = await fetchWithLoading('/api/users', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -187,17 +191,17 @@ export default function WorkersPage() {
       });
 
       if (res.ok) {
-        alert('User updated successfully!');
+        toast.pushToast({ message: 'User updated successfully!', type: 'success' });
         setEditingUser(null);
         fetchUsers();
         fetchWorkers();
       } else {
         const error = await res.json();
-        alert(error.error || 'Failed to update user');
+        toast.pushToast({ message: error.error || 'Failed to update user', type: 'error' });
       }
     } catch (error) {
       console.error('Error updating user:', error);
-      alert('Error updating user');
+      toast.pushToast({ message: 'Error updating user', type: 'error' });
     }
   };
 
@@ -207,20 +211,20 @@ export default function WorkersPage() {
     }
 
     try {
-      const res = await fetch(`/api/users?id=${userId}`, {
+      const res = await fetchWithLoading(`/api/users?id=${userId}`, {
         method: 'DELETE',
       });
 
       if (res.ok) {
-        alert('User deleted successfully!');
+        toast.pushToast({ message: 'User deleted successfully!', type: 'success' });
         fetchUsers();
       } else {
         const error = await res.json();
-        alert(error.error || 'Failed to delete user');
+        toast.pushToast({ message: error.error || 'Failed to delete user', type: 'error' });
       }
     } catch (error) {
       console.error('Error deleting user:', error);
-      alert('Error deleting user');
+      toast.pushToast({ message: 'Error deleting user', type: 'error' });
     }
   };
 
@@ -253,7 +257,7 @@ export default function WorkersPage() {
             <button
               onClick={() => {
                 navigator.clipboard.writeText(generatedPassword);
-                alert('Password copied to clipboard!');
+                toast.pushToast({ message: 'Password copied to clipboard!', type: 'info' });
               }}
               className="mt-2 px-3 py-1 bg-yellow-600 text-white rounded hover:bg-yellow-700 text-sm"
             >

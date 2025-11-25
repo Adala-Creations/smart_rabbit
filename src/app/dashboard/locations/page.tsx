@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import useFetchWithLoading from '@/hooks/useFetchWithLoading';
 import Breadcrumbs from "./components/Breadcrumbs";
 import Pagination from "./components/Pagination";
+import { useToast } from '@/components/ToastProvider';
 
 type ViewLevel = "locations" | "rabbitries" | "cages" | "cageDetail";
 
 export default function LocationsPage() {
+  const toast = useToast();
   const [locations, setLocations] = useState<any[]>([]);
   const [allLocations, setAllLocations] = useState<any[]>([]);
   const [rabbitries, setRabbitries] = useState<any[]>([]);
@@ -67,19 +70,20 @@ export default function LocationsPage() {
 
   
 
+  const fetchWithLoading = useFetchWithLoading();
   const fetchReferenceData = async () => {
     try {
       const [rabRes, cageRes] = await Promise.all([
-        fetch('/api/rabbitries'),
-        fetch('/api/cages'),
+        fetchWithLoading('/api/rabbitries'),
+        fetchWithLoading('/api/cages'),
       ]);
       setRabbitries(await rabRes.json());
       setCages(await cageRes.json());
       // also fetch all locations for dropdowns (limit to 1000)
       try {
-        const locRes = await fetch('/api/locations?page=1&perPage=1000&sort=name_asc');
-        const locData = await locRes.json();
-        setAllLocations(locData.items ?? []);
+        const locRes = await fetchWithLoading('/api/locations/list?limit=500');
+        const list = await locRes.json();
+        setAllLocations(list ?? []);
       } catch (err) {
         console.warn('Failed to fetch all locations for dropdowns', err);
       }
@@ -91,7 +95,7 @@ export default function LocationsPage() {
   const fetchLocations = async () => {
     try {
       const sortParam = sortOrder === "asc" ? 'name_asc' : 'name_desc';
-      const res = await fetch(`/api/locations?page=${page}&perPage=${perPage}&sort=${sortParam}`);
+      const res = await fetchWithLoading(`/api/locations?page=${page}&perPage=${perPage}&sort=${sortParam}`);
       const data = await res.json();
       // Expect { items, total }
       setLocations(data.items ?? []);
@@ -109,7 +113,7 @@ export default function LocationsPage() {
         ? JSON.stringify({ id: editingLocationId, ...locationData })
         : JSON.stringify(locationData);
 
-      const res = await fetch('/api/locations', {
+      const res = await fetchWithLoading('/api/locations', {
         method,
         headers: { 'Content-Type': 'application/json' },
         body,
@@ -120,7 +124,7 @@ export default function LocationsPage() {
         setEditingLocationId(null);
         setLocationData({ name: '', type: 'farm', description: '', address: '' });
         fetchLocations();
-        alert(editingLocationId ? 'Location updated!' : 'Location created!');
+        toast.pushToast({ message: editingLocationId ? 'Location updated!' : 'Location created!', type: 'success' });
       }
     } catch (error) {
       console.error('Error saving location:', error);
@@ -141,13 +145,13 @@ export default function LocationsPage() {
   const handleLocationDelete = async (id: string, name: string) => {
     if (!confirm(`Delete location "${name}"? This will also delete all associated rabbitries and cages.`)) return;
     try {
-      const res = await fetch(`/api/locations?id=${id}`, { method: 'DELETE' });
+      const res = await fetchWithLoading(`/api/locations?id=${id}`, { method: 'DELETE' });
       if (res.ok) {
         fetchLocations();
-        alert('Location deleted!');
+        toast.pushToast({ message: 'Location deleted!', type: 'success' });
       } else {
         const data = await res.json();
-        alert(data.error || 'Failed to delete');
+        toast.pushToast({ message: data.error || 'Failed to delete', type: 'error' });
       }
     } catch (error) {
       console.error('Error deleting location:', error);
@@ -162,7 +166,7 @@ export default function LocationsPage() {
         ? JSON.stringify({ id: editingRabbitryId, ...rabbitryData })
         : JSON.stringify(rabbitryData);
 
-      const res = await fetch('/api/rabbitries', {
+      const res = await fetchWithLoading('/api/rabbitries', {
         method,
         headers: { 'Content-Type': 'application/json' },
         body,
@@ -178,7 +182,7 @@ export default function LocationsPage() {
         if (selectedLocation && rabbitryData.locationId === selectedLocation.id) {
           openLocation(selectedLocation);
         }
-        alert(editingRabbitryId ? 'Rabbitry updated!' : 'Rabbitry created!');
+        toast.pushToast({ message: editingRabbitryId ? 'Rabbitry updated!' : 'Rabbitry created!', type: 'success' });
       }
     } catch (error) {
       console.error('Error saving rabbitry:', error);
@@ -198,14 +202,14 @@ export default function LocationsPage() {
   const handleRabbitryDelete = async (id: string, name: string) => {
     if (!confirm(`Delete rabbitry "${name}"? This will also delete all associated cages.`)) return;
     try {
-      const res = await fetch(`/api/rabbitries?id=${id}`, { method: 'DELETE' });
+      const res = await fetchWithLoading(`/api/rabbitries?id=${id}`, { method: 'DELETE' });
       if (res.ok) {
         fetchLocations();
         fetchReferenceData();
-        alert('Rabbitry deleted!');
+        toast.pushToast({ message: 'Rabbitry deleted!', type: 'success' });
       } else {
         const data = await res.json();
-        alert(data.error || 'Failed to delete');
+        toast.pushToast({ message: data.error || 'Failed to delete', type: 'error' });
       }
     } catch (error) {
       console.error('Error deleting rabbitry:', error);
@@ -220,7 +224,7 @@ export default function LocationsPage() {
         ? JSON.stringify({ id: editingCageId, capacity: cageData.capacity, compartments: cageData.compartments, description: cageData.description })
         : JSON.stringify(cageData);
 
-      const res = await fetch('/api/cages', {
+      const res = await fetchWithLoading('/api/cages', {
         method,
         headers: { 'Content-Type': 'application/json' },
         body,
@@ -235,10 +239,10 @@ export default function LocationsPage() {
         if (selectedRabbitry && cageData.rabbitryId === selectedRabbitry.id) {
           openRabbitry(selectedRabbitry);
         }
-        alert(editingCageId ? 'Cage updated!' : 'Cage created!');
+        toast.pushToast({ message: editingCageId ? 'Cage updated!' : 'Cage created!', type: 'success' });
       } else {
         const data = await res.json();
-        alert(data.error);
+        toast.pushToast({ message: data.error || 'Failed to save cage', type: 'error' });
       }
     } catch (error) {
       console.error('Error saving cage:', error);
@@ -261,14 +265,14 @@ export default function LocationsPage() {
   const handleCageDelete = async (id: string, cageId: string) => {
     if (!confirm(`Delete cage "${cageId}"?`)) return;
     try {
-      const res = await fetch(`/api/cages?id=${id}`, { method: 'DELETE' });
+      const res = await fetchWithLoading(`/api/cages?id=${id}`, { method: 'DELETE' });
       if (res.ok) {
         fetchLocations();
         fetchReferenceData();
-        alert('Cage deleted!');
+        toast.pushToast({ message: 'Cage deleted!', type: 'success' });
       } else {
         const data = await res.json();
-        alert(data.error || 'Failed to delete');
+        toast.pushToast({ message: data.error || 'Failed to delete', type: 'error' });
       }
     } catch (error) {
       console.error('Error deleting cage:', error);
@@ -339,7 +343,7 @@ export default function LocationsPage() {
     try {
       const method = editingRabbitId ? 'PUT' : 'POST';
       const body = editingRabbitId ? JSON.stringify({ id: editingRabbitId, ...rabbitFormData }) : JSON.stringify(rabbitFormData);
-      const res = await fetch('/api/rabbits', { method, headers: { 'Content-Type': 'application/json' }, body });
+      const res = await fetchWithLoading('/api/rabbits', { method, headers: { 'Content-Type': 'application/json' }, body });
       if (res.ok) {
         setShowRabbitForm(false);
         setEditingRabbitId(null);
@@ -348,30 +352,30 @@ export default function LocationsPage() {
         if (selectedCage) openCage(selectedCage);
         fetchLocations();
         fetchReferenceData();
-        alert('Rabbit saved!');
+        toast.pushToast({ message: 'Rabbit saved!', type: 'success' });
       } else {
         const data = await res.json();
-        alert(data.error || 'Failed to save rabbit');
+        toast.pushToast({ message: data.error || 'Failed to save rabbit', type: 'error' });
       }
     } catch (error) {
       console.error('Error saving rabbit:', error);
-      alert('Failed to save rabbit');
+      toast.pushToast({ message: 'Failed to save rabbit', type: 'error' });
     }
   };
 
   const handleRabbitDelete = async (id: string, rabbitId: string) => {
     if (!confirm(`Delete rabbit ${rabbitId}? This action cannot be undone.`)) return;
     try {
-      const res = await fetch(`/api/rabbits?id=${id}`, { method: 'DELETE' });
+      const res = await fetchWithLoading(`/api/rabbits?id=${id}`, { method: 'DELETE' });
       if (res.ok) {
         // refresh cage
         if (selectedCage) openCage(selectedCage);
         fetchLocations();
         fetchReferenceData();
-        alert('Rabbit deleted!');
+        toast.pushToast({ message: 'Rabbit deleted!', type: 'success' });
       } else {
         const data = await res.json();
-        alert(data.error || 'Failed to delete rabbit');
+        toast.pushToast({ message: data.error || 'Failed to delete rabbit', type: 'error' });
       }
     } catch (error) {
       console.error('Error deleting rabbit:', error);
@@ -403,7 +407,7 @@ export default function LocationsPage() {
     // fetch rabbitries for this location (with cages in each rabbitry)
     (async () => {
       try {
-        const res = await fetch(`/api/rabbitries?locationId=${loc.id}`);
+        const res = await fetchWithLoading(`/api/rabbitries?locationId=${loc.id}`);
         const data = await res.json();
         // data is an array of rabbitries with cages included
         setSelectedLocation({ ...loc, rabbitries: data });
@@ -420,7 +424,7 @@ export default function LocationsPage() {
   const openRabbitry = (rabbitry: any) => {
     (async () => {
       try {
-        const res = await fetch(`/api/cages?rabbitryId=${rabbitry.id}`);
+        const res = await fetchWithLoading(`/api/cages?rabbitryId=${rabbitry.id}`);
         const data = await res.json();
         setSelectedRabbitry({ ...rabbitry, cages: data });
       } catch (error) {
@@ -435,7 +439,7 @@ export default function LocationsPage() {
   const openCage = (cage: any) => {
     (async () => {
       try {
-        const res = await fetch(`/api/cages?id=${cage.id}`);
+        const res = await fetchWithLoading(`/api/cages?id=${cage.id}`);
         const data = await res.json();
         setSelectedCage(data);
       } catch (error) {

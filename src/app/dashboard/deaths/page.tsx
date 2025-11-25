@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import useFetchWithLoading from '@/hooks/useFetchWithLoading';
+import { useToast } from '@/components/ToastProvider';
 
 export default function DeathsPage() {
   const [deaths, setDeaths] = useState<any[]>([]);
@@ -13,6 +15,8 @@ export default function DeathsPage() {
   const [editingOffspringId, setEditingOffspringId] = useState<string | null>(null);
   const [viewingDeath, setViewingDeath] = useState<any | null>(null);
   const [viewingOffspringDeath, setViewingOffspringDeath] = useState<any | null>(null);
+  const toast = useToast();
+  const fetchWithLoading = useFetchWithLoading();
   const [formData, setFormData] = useState({
     rabbitId: '',
     deathDate: new Date().toISOString().split('T')[0],
@@ -31,13 +35,41 @@ export default function DeathsPage() {
     fetchData();
   }, []);
 
+  const formatAgeFromDates = (dob: string | null | undefined, deathDate: string | null | undefined) => {
+    if (!dob || !deathDate) return '-';
+    const b = new Date(dob);
+    const d = new Date(deathDate);
+    if (isNaN(b.getTime()) || isNaN(d.getTime())) return '-';
+    if (d < b) return '-';
+
+    let years = d.getFullYear() - b.getFullYear();
+    let months = d.getMonth() - b.getMonth();
+    let days = d.getDate() - b.getDate();
+
+    if (days < 0) {
+      months -= 1;
+      // days in previous month
+      const prevMonth = new Date(d.getFullYear(), d.getMonth(), 0).getDate();
+      days += prevMonth;
+    }
+
+    if (months < 0) {
+      years -= 1;
+      months += 12;
+    }
+
+    if (years > 0) return `${years}y${months > 0 ? ` ${months}m` : ''}`;
+    if (months > 0) return `${months}m${days > 0 ? ` ${days}d` : ''}`;
+    return `${days}d`;
+  };
+
   const fetchData = async () => {
     try {
       const [deathsRes, offspringDeathsRes, rabbitsRes, birthsRes] = await Promise.all([
-        fetch('/api/deaths'),
-        fetch('/api/offspring-deaths'),
-        fetch('/api/rabbits'),
-        fetch('/api/births'),
+        fetchWithLoading('/api/deaths'),
+        fetchWithLoading('/api/offspring-deaths'),
+        fetchWithLoading('/api/rabbits'),
+        fetchWithLoading('/api/births'),
       ]);
 
       setDeaths(await deathsRes.json());
@@ -58,7 +90,7 @@ export default function DeathsPage() {
         ? JSON.stringify({ id: editingId, ...formData })
         : JSON.stringify(formData);
 
-      const res = await fetch(url, {
+      const res = await fetchWithLoading(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body,
@@ -74,14 +106,14 @@ export default function DeathsPage() {
           notes: '',
         });
         fetchData();
-        alert(editingId ? 'Death record updated!' : 'Death record created!');
+        toast.pushToast({ message: editingId ? 'Death record updated!' : 'Death record created!', type: 'success' });
       } else {
         const data = await res.json();
-        alert(data.error || 'Failed to save death record');
+        toast.pushToast({ message: data.error || 'Failed to save death record', type: 'error' });
       }
     } catch (error) {
       console.error('Error saving death record:', error);
-      alert('Failed to save death record');
+      toast.pushToast({ message: 'Failed to save death record', type: 'error' });
     }
   };
 
@@ -99,13 +131,13 @@ export default function DeathsPage() {
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this death record?')) return;
     try {
-      const res = await fetch(`/api/deaths?id=${id}`, { method: 'DELETE' });
+      const res = await fetchWithLoading(`/api/deaths?id=${id}`, { method: 'DELETE' });
       if (res.ok) {
         fetchData();
-        alert('Death record deleted!');
+        toast.pushToast({ message: 'Death record deleted!', type: 'success' });
       } else {
         const data = await res.json();
-        alert(data.error || 'Failed to delete');
+        toast.pushToast({ message: data.error || 'Failed to delete', type: 'error' });
       }
     } catch (error) {
       console.error('Error deleting death record:', error);
@@ -132,7 +164,7 @@ export default function DeathsPage() {
         ? JSON.stringify({ id: editingOffspringId, ...offspringFormData })
         : JSON.stringify(offspringFormData);
 
-      const res = await fetch(url, {
+      const res = await fetchWithLoading(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body,
@@ -149,14 +181,14 @@ export default function DeathsPage() {
           notes: '',
         });
         fetchData();
-        alert(editingOffspringId ? 'Offspring death record updated!' : 'Offspring death record created!');
+        toast.pushToast({ message: editingOffspringId ? 'Offspring death record updated!' : 'Offspring death record created!', type: 'success' });
       } else {
         const data = await res.json();
-        alert(data.error || 'Failed to save offspring death record');
+        toast.pushToast({ message: data.error || 'Failed to save offspring death record', type: 'error' });
       }
     } catch (error) {
       console.error('Error saving offspring death record:', error);
-      alert('Failed to save offspring death record');
+      toast.pushToast({ message: 'Failed to save offspring death record', type: 'error' });
     }
   };
 
@@ -175,13 +207,13 @@ export default function DeathsPage() {
   const handleDeleteOffspring = async (id: string) => {
     if (!confirm('Are you sure you want to delete this offspring death record?')) return;
     try {
-      const res = await fetch(`/api/offspring-deaths?id=${id}`, { method: 'DELETE' });
+      const res = await fetchWithLoading(`/api/offspring-deaths?id=${id}`, { method: 'DELETE' });
       if (res.ok) {
         fetchData();
-        alert('Offspring death record deleted!');
+        toast.pushToast({ message: 'Offspring death record deleted!', type: 'success' });
       } else {
         const data = await res.json();
-        alert(data.error || 'Failed to delete');
+        toast.pushToast({ message: data.error || 'Failed to delete', type: 'error' });
       }
     } catch (error) {
       console.error('Error deleting offspring death record:', error);
@@ -447,6 +479,10 @@ export default function DeathsPage() {
                   <p className="text-lg font-semibold text-gray-900 dark:text-white">{new Date(viewingDeath.deathDate).toLocaleDateString()}</p>
                 </div>
                 <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Age at Death</p>
+                  <p className="text-lg font-semibold text-gray-900 dark:text-white">{formatAgeFromDates(viewingDeath.rabbit?.dateOfBirth, viewingDeath.deathDate)}</p>
+                </div>
+                <div>
                   <p className="text-sm text-gray-500 dark:text-gray-400">Cause of Death</p>
                   <span className="inline-block px-3 py-1 text-sm rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
                     {viewingDeath.cause || 'Not specified'}
@@ -503,7 +539,11 @@ export default function DeathsPage() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-500 dark:text-gray-400">Death Date</p>
-                  <p className="text-lg font-semibold text-gray-900 dark:text-white">{new Date(viewingOffspringDeath.deathDate).toLocaleDateString()}</p>
+                    <p className="text-lg font-semibold text-gray-900 dark:text-white">{new Date(viewingOffspringDeath.deathDate).toLocaleDateString()}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Age at Death</p>
+                  <p className="text-lg font-semibold text-gray-900 dark:text-white">{formatAgeFromDates(viewingOffspringDeath.birth?.birthDate, viewingOffspringDeath.deathDate)}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500 dark:text-gray-400">Number of Kits</p>
@@ -563,7 +603,10 @@ export default function DeathsPage() {
                   Cause
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Notes
+                  Actions
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Age at death
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Actions
@@ -573,7 +616,7 @@ export default function DeathsPage() {
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
               {deaths.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={7} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
                     No death records found
                   </td>
                 </tr>
@@ -600,6 +643,9 @@ export default function DeathsPage() {
                       ) : (
                         <span className="text-gray-400 dark:text-gray-500">-</span>
                       )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      {formatAgeFromDates(death.rabbit?.dateOfBirth, death.deathDate)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button
@@ -657,6 +703,9 @@ export default function DeathsPage() {
                   Notes
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Age at death
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
@@ -664,7 +713,7 @@ export default function DeathsPage() {
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
               {offspringDeaths.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={8} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
                     No offspring death records found
                   </td>
                 </tr>
@@ -694,6 +743,9 @@ export default function DeathsPage() {
                       ) : (
                         <span className="text-gray-400 dark:text-gray-500">-</span>
                       )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      {formatAgeFromDates(offspringDeath.birth?.birthDate, offspringDeath.deathDate)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button

@@ -1,3 +1,5 @@
+// 'offspring-deaths' case was moved into the switch below to avoid accidental top-level code
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -154,11 +156,64 @@ export async function GET(request: NextRequest) {
           rabbitName: d.rabbit.name,
           breed: d.rabbit.breed,
           gender: d.rabbit.gender,
+          ageAtDeath: (() => {
+            try {
+              const dob = d.rabbit?.dateOfBirth;
+              const dd = d.deathDate;
+              if (!dob || !dd) return '';
+              const b = new Date(dob);
+              const de = new Date(dd);
+              if (isNaN(b.getTime()) || isNaN(de.getTime()) || de < b) return '';
+              let years = de.getFullYear() - b.getFullYear();
+              let months = de.getMonth() - b.getMonth();
+              let days = de.getDate() - b.getDate();
+              if (days < 0) { months -= 1; const prevMonth = new Date(de.getFullYear(), de.getMonth(), 0).getDate(); days += prevMonth; }
+              if (months < 0) { years -= 1; months += 12; }
+              if (years > 0) return `${years}y${months > 0 ? ` ${months}m` : ''}`;
+              if (months > 0) return `${months}m${days > 0 ? ` ${days}d` : ''}`;
+              return `${days}d`;
+            } catch(e) { return ''; }
+          })(),
           cause: d.cause,
           notes: d.notes,
           createdAt: formatDate(d.createdAt),
         }));
-        headers = ['deathDate', 'rabbitId', 'rabbitName', 'breed', 'gender', 'cause', 'notes', 'createdAt'];
+        headers = ['deathDate', 'rabbitId', 'rabbitName', 'breed', 'gender', 'cause', 'ageAtDeath', 'notes', 'createdAt'];
+        break;
+
+      case 'offspring-deaths':
+        const offspringDeaths = await prisma.offspringDeath.findMany({
+          where: dateFilter as any,
+          include: { birth: { include: { mating: { include: { buck: true, doe: true } } } } },
+        });
+        data = offspringDeaths.map(od => ({
+          birthDate: formatDate(od.birth.birthDate),
+          parents: od.birth.mating ? `${od.birth.mating.buck.rabbitId} × ${od.birth.mating.doe.rabbitId}` : '',
+          deathDate: formatDate(od.deathDate),
+          count: od.count,
+          cause: od.cause,
+          ageAtDeath: (() => {
+            try {
+              const bd = od.birth?.birthDate;
+              const dd = od.deathDate;
+              if (!bd || !dd) return '';
+              const b = new Date(bd);
+              const de = new Date(dd);
+              if (isNaN(b.getTime()) || isNaN(de.getTime()) || de < b) return '';
+              let years = de.getFullYear() - b.getFullYear();
+              let months = de.getMonth() - b.getMonth();
+              let days = de.getDate() - b.getDate();
+              if (days < 0) { months -= 1; const prevMonth = new Date(de.getFullYear(), de.getMonth(), 0).getDate(); days += prevMonth; }
+              if (months < 0) { years -= 1; months += 12; }
+              if (years > 0) return `${years}y${months > 0 ? ` ${months}m` : ''}`;
+              if (months > 0) return `${months}m${days > 0 ? ` ${days}d` : ''}`;
+              return `${days}d`;
+            } catch(e) { return ''; }
+          })(),
+          notes: od.notes,
+          createdAt: formatDate(od.createdAt),
+        }));
+        headers = ['birthDate', 'parents', 'deathDate', 'count', 'cause', 'ageAtDeath', 'notes', 'createdAt'];
         break;
 
       case 'sales':

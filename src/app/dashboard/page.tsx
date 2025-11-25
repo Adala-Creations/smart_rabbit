@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import useFetchWithLoading from '@/hooks/useFetchWithLoading';
 import Link from 'next/link';
 
 interface Stats {
@@ -41,44 +42,45 @@ export default function DashboardPage() {
   const [notifications, setNotifications] = useState<string[]>([]);
   const [offspring, setOffspring] = useState<any[]>([]);
 
+  const fetchWithLoading = useFetchWithLoading();
   useEffect(() => {
     async function fetchStats() {
       try {
         // Fetch rabbits
-        const rabbitsRes = await fetch('/api/rabbits');
+        const rabbitsRes = await fetchWithLoading('/api/rabbits');
         const rabbits = await rabbitsRes.json();
 
         // Fetch offspring batches
-        const offspringRes = await fetch('/api/offspring');
+        const offspringRes = await fetchWithLoading('/api/offspring');
         const offspringBatches = await offspringRes.json();
         setOffspring(offspringBatches);
 
         // Fetch matings
-        const matingsRes = await fetch('/api/matings');
+        const matingsRes = await fetchWithLoading('/api/matings');
         const matings = await matingsRes.json();
         const pendingMatings = matings.filter((m: any) => !m.successful).length;
 
         // Fetch births
-        const birthsRes = await fetch('/api/births');
+        const birthsRes = await fetchWithLoading('/api/births');
         const births = await birthsRes.json();
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
         const recentBirths = births.filter((b: any) => new Date(b.birthDate) >= thirtyDaysAgo).length;
 
         // Fetch sales
-        const salesRes = await fetch('/api/sales');
+        const salesRes = await fetchWithLoading('/api/sales');
         const sales = await salesRes.json();
         const totalSales = sales.reduce((sum: number, s: any) => sum + s.amount, 0);
 
         // Fetch expenses
-        const expensesRes = await fetch('/api/expenses');
+        const expensesRes = await fetchWithLoading('/api/expenses');
         const expenses = await expensesRes.json();
         const totalExpenses = expenses.reduce((sum: number, e: any) => sum + e.amount, 0);
 
         // Fetch deaths (parents) and offspring deaths
-        const deathsRes = await fetch('/api/deaths');
+        const deathsRes = await fetchWithLoading('/api/deaths');
         const deaths = await deathsRes.json();
-        const offspringDeathsRes = await fetch('/api/offspring-deaths');
+        const offspringDeathsRes = await fetchWithLoading('/api/offspring-deaths');
         const offspringDeaths = await offspringDeathsRes.json();
         const offspringDeathsTotal = Array.isArray(offspringDeaths)
           ? offspringDeaths.reduce((sum: number, d: any) => sum + (d.count || 0), 0)

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import useFetchWithLoading from '@/hooks/useFetchWithLoading';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -32,8 +33,9 @@ export default function RegisterPage() {
 
     setLoading(true);
 
+    const fetchWithLoading = useFetchWithLoading();
     try {
-      const res = await fetch('/api/auth/register', {
+      const res = await fetchWithLoading('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

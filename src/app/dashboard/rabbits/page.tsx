@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import useFetchWithLoading from '@/hooks/useFetchWithLoading';
+import { useToast } from '@/components/ToastProvider';
 import Link from 'next/link';
 
 interface Rabbit {
@@ -20,6 +22,7 @@ interface Rabbit {
 }
 
 export default function RabbitsPage() {
+  const toast = useToast();
   const [rabbits, setRabbits] = useState<Rabbit[]>([]);
   const [offspring, setOffspring] = useState<any[]>([]);
   const [births, setBirths] = useState<any[]>([]);
@@ -54,6 +57,7 @@ export default function RabbitsPage() {
     notes: '',
   });
 
+  const fetchWithLoading = useFetchWithLoading();
   useEffect(() => {
     fetchRabbits();
     fetchOffspring();
@@ -63,7 +67,7 @@ export default function RabbitsPage() {
 
   const fetchRabbits = async () => {
     try {
-      const res = await fetch('/api/rabbits');
+      const res = await fetchWithLoading('/api/rabbits');
       const data = await res.json();
       setRabbits(data);
       setLoading(false);
@@ -75,7 +79,7 @@ export default function RabbitsPage() {
 
   const fetchOffspring = async () => {
     try {
-      const res = await fetch('/api/offspring');
+      const res = await fetchWithLoading('/api/offspring');
       const data = await res.json();
       setOffspring(data);
     } catch (error) {
@@ -85,7 +89,7 @@ export default function RabbitsPage() {
 
   const fetchBirths = async () => {
     try {
-      const res = await fetch('/api/births');
+      const res = await fetchWithLoading('/api/births');
       const data = await res.json();
       setBirths(data);
     } catch (error) {
@@ -93,9 +97,16 @@ export default function RabbitsPage() {
     }
   };
 
+  // Compute eligible births for new offspring batches (no assigned batch) or include the birth when editing its batch
+  const eligibleBirths = births.filter((b) => {
+    if (!b.offspringBatches || b.offspringBatches.length === 0) return true;
+    if (editingOffspringId && b.offspringBatches.some((ob:any) => ob.id === editingOffspringId)) return true;
+    return false;
+  });
+
   const fetchCages = async () => {
     try {
-      const res = await fetch('/api/cages');
+      const res = await fetchWithLoading('/api/cages');
       const data = await res.json();
       setCages(data);
     } catch (error) {
@@ -106,10 +117,10 @@ export default function RabbitsPage() {
   const fetchRabbitRecords = async (rabbitId: string) => {
     try {
       const [matingsRes, birthsRes, salesRes, deathsRes] = await Promise.all([
-        fetch('/api/matings'),
-        fetch('/api/births'),
-        fetch('/api/sales'),
-        fetch('/api/deaths'),
+        fetchWithLoading('/api/matings'),
+        fetchWithLoading('/api/births'),
+        fetchWithLoading('/api/sales'),
+        fetchWithLoading('/api/deaths'),
       ]);
       const matings = matingsRes.ok ? await matingsRes.json() : [];
       const births = birthsRes.ok ? await birthsRes.json() : [];
@@ -150,6 +161,22 @@ export default function RabbitsPage() {
     }
   }, [viewingRabbit]);
 
+  const updateOffspringHealth = async (id: string, newStatus: string, note: string) => {
+    try {
+      const res = await fetchWithLoading('/api/offspring', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ id, overallHealthStatus: newStatus, healthNotes: note })});
+      if (res.ok) {
+        const updated = await res.json();
+        setViewingOffspring(updated);
+        setOffspring(prev => prev.map(o => o.id === updated.id ? updated : o));
+        return { ok: true, updated };
+      }
+      return { ok: false };
+    } catch (err) {
+      console.error('Error updating offspring health', err);
+      return { ok: false };
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -160,7 +187,7 @@ export default function RabbitsPage() {
         ? JSON.stringify({ id: editingId, ...formData })
         : JSON.stringify(formData);
 
-      const res = await fetch(url, {
+      const res = await fetchWithLoading(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body,
@@ -184,14 +211,14 @@ export default function RabbitsPage() {
           healthDescription: '',
         });
         fetchRabbits();
-        alert(editingId ? 'Rabbit updated successfully!' : 'Rabbit added successfully!');
+        toast.pushToast({ message: editingId ? 'Rabbit updated successfully!' : 'Rabbit added successfully!', type: 'success' });
       } else {
         const data = await res.json();
-        alert(data.error || 'Failed to save rabbit');
+        toast.pushToast({ message: data.error || 'Failed to save rabbit', type: 'error' });
       }
     } catch (error) {
       console.error('Error saving rabbit:', error);
-      alert('Failed to save rabbit');
+      toast.pushToast({ message: 'Failed to save rabbit', type: 'error' });
     }
   };
 
@@ -220,20 +247,20 @@ export default function RabbitsPage() {
     }
 
     try {
-      const res = await fetch(`/api/rabbits?id=${id}`, {
+      const res = await fetchWithLoading(`/api/rabbits?id=${id}`, {
         method: 'DELETE',
       });
 
       if (res.ok) {
         fetchRabbits();
-        alert('Rabbit deleted successfully!');
+        toast.pushToast({ message: 'Rabbit deleted successfully!', type: 'success' });
       } else {
         const data = await res.json();
-        alert(data.error || 'Failed to delete rabbit');
+        toast.pushToast({ message: data.error || 'Failed to delete rabbit', type: 'error' });
       }
     } catch (error) {
       console.error('Error deleting rabbit:', error);
-      alert('Failed to delete rabbit');
+      toast.pushToast({ message: 'Failed to delete rabbit', type: 'error' });
     }
   };
 
@@ -267,7 +294,7 @@ export default function RabbitsPage() {
         ? JSON.stringify({ id: editingOffspringId, ...offspringFormData })
         : JSON.stringify(offspringFormData);
 
-      const res = await fetch(url, {
+      const res = await fetchWithLoading(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body,
@@ -278,14 +305,14 @@ export default function RabbitsPage() {
         setEditingOffspringId(null);
         setOffspringFormData({ birthId: '', count: '', weight: '', notes: '' });
         fetchOffspring();
-        alert(editingOffspringId ? 'Offspring batch updated!' : 'Offspring batch added!');
+        toast.pushToast({ message: editingOffspringId ? 'Offspring batch updated!' : 'Offspring batch added!', type: 'success' });
       } else {
         const data = await res.json();
-        alert(data.error || 'Failed to save offspring batch');
+        toast.pushToast({ message: data.error || 'Failed to save offspring batch', type: 'error' });
       }
     } catch (error) {
       console.error('Error saving offspring batch:', error);
-      alert('Failed to save offspring batch');
+      toast.pushToast({ message: 'Failed to save offspring batch', type: 'error' });
     }
   };
 
@@ -304,17 +331,17 @@ export default function RabbitsPage() {
     if (!confirm(`Delete batch ${batchId}?`)) return;
 
     try {
-      const res = await fetch(`/api/offspring?id=${id}`, { method: 'DELETE' });
+      const res = await fetchWithLoading(`/api/offspring?id=${id}`, { method: 'DELETE' });
       if (res.ok) {
         fetchOffspring();
-        alert('Offspring batch deleted!');
+        toast.pushToast({ message: 'Offspring batch deleted!', type: 'success' });
       } else {
         const data = await res.json();
-        alert(data.error || 'Failed to delete batch');
+        toast.pushToast({ message: data.error || 'Failed to delete batch', type: 'error' });
       }
     } catch (error) {
       console.error('Error deleting offspring:', error);
-      alert('Failed to delete batch');
+      toast.pushToast({ message: 'Failed to delete batch', type: 'error' });
     }
   };
 
@@ -323,20 +350,20 @@ export default function RabbitsPage() {
     if (!weight) return;
 
     try {
-      const res = await fetch('/api/offspring/weights', {
+      const res = await fetchWithLoading('/api/offspring/weights', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ batchId, weight: parseFloat(weight) }),
       });
       if (res.ok) {
         fetchOffspring();
-        alert('Weight added!');
+        toast.pushToast({ message: 'Weight added!', type: 'success' });
       } else {
-        alert('Failed to add weight');
+        toast.pushToast({ message: 'Failed to add weight', type: 'error' });
       }
     } catch (error) {
       console.error('Error adding weight:', error);
-      alert('Failed to add weight');
+      toast.pushToast({ message: 'Failed to add weight', type: 'error' });
     }
   };
 
@@ -421,12 +448,15 @@ export default function RabbitsPage() {
                 className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
               >
                 <option value="">Select Birth</option>
-                {births.map((b) => (
+                {eligibleBirths.map((b) => (
                   <option key={b.id} value={b.id}>
                     {new Date(b.birthDate).toLocaleDateString()} - {b.mating?.doe?.rabbitId} × {b.mating?.buck?.rabbitId} ({b.aliveKits} alive)
                   </option>
                 ))}
               </select>
+              {eligibleBirths.length === 0 && (
+                <div className="mt-2 text-sm text-gray-500">No available births without an offspring batch.</div>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -467,15 +497,15 @@ export default function RabbitsPage() {
             <div className="md:col-span-2">
               <button
                 type="submit"
-                className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                disabled={!editingOffspringId && eligibleBirths.length === 0}
+                className={`w-full px-4 py-2 ${!editingOffspringId && eligibleBirths.length === 0 ? 'bg-gray-300 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700'} text-white rounded-lg transition-colors`}
               >
-                {editingOffspringId ? 'Update Batch' : 'Add Batch'}
+                {editingOffspringId ? 'Update Batch' : 'Add Offspring Batch'}
               </button>
             </div>
           </form>
         </div>
       )}
-
       {showForm && (
         <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
           <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">
@@ -1091,27 +1121,20 @@ export default function RabbitsPage() {
       </div>
       )}
 
-      {/* Offspring View Modal */}
+      {/* Minimal Offspring View Modal (debugging) */}
       {viewingOffspring && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4" onClick={() => setViewingOffspring(null)}>
           <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 sm:p-6">
               <div className="flex justify-between items-start mb-3 sm:mb-4">
-                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Offspring Batch Details</h2>
-                <button onClick={() => setViewingOffspring(null)} className="text-gray-500 hover:text-gray-700 dark:text-gray-400">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Offspring Batch</h2>
+                <button onClick={() => setViewingOffspring(null)} className="text-gray-500 hover:text-gray-700 dark:text-gray-400">Close</button>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div><p className="text-sm text-gray-500 dark:text-gray-400">Batch ID</p><p className="text-lg font-semibold text-gray-900 dark:text-white">{viewingOffspring.batchId}</p></div>
-                <div><p className="text-sm text-gray-500 dark:text-gray-400">Count</p><p className="text-lg font-semibold text-gray-900 dark:text-white">{viewingOffspring.count} kits</p></div>
-                <div><p className="text-sm text-gray-500 dark:text-gray-400">Birth Date</p><p className="text-lg font-semibold text-gray-900 dark:text-white">{new Date(viewingOffspring.birth.birthDate).toLocaleDateString()}</p></div>
-                <div><p className="text-sm text-gray-500 dark:text-gray-400">Age</p><p className="text-lg font-semibold text-gray-900 dark:text-white">{(() => { const d = Math.floor((Date.now() - new Date(viewingOffspring.birth.birthDate).getTime())/(1000*60*60*24)); const w = Math.floor(d/7); return `${d} days (${w} weeks)`; })()}</p></div>
-                <div><p className="text-sm text-gray-500 dark:text-gray-400">Batch Status</p><p className="text-lg font-semibold text-gray-900 dark:text-white">{viewingOffspring.status}</p></div>
-                <div><p className="text-sm text-gray-500 dark:text-gray-400">Health Status</p><p className="text-lg font-semibold text-gray-900 dark:text-white">{viewingOffspring.overallHealthStatus}</p></div>
-                {viewingOffspring.notes && <div className="col-span-2"><p className="text-sm text-gray-500 dark:text-gray-400">Notes</p><p className="text-gray-900 dark:text-white">{viewingOffspring.notes}</p></div>}
+              <div className="grid grid-cols-1 gap-2">
+                <div className="text-sm">Batch ID: {viewingOffspring.batchId}</div>
+                <div className="text-sm">Count: {viewingOffspring.count}</div>
+                <div className="text-sm">Birth Date: {new Date(viewingOffspring.birth.birthDate).toLocaleDateString()}</div>
+                <div className="text-sm">Age: {(() => { const d = Math.floor((Date.now() - new Date(viewingOffspring.birth.birthDate).getTime())/(1000*60*60*24)); const w = Math.floor(d/7); return `${d} days (${w} weeks)`; })()}</div>
               </div>
               {(viewingOffspring.birth.mating?.buck || viewingOffspring.birth.mating?.doe) && (
                 <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1158,7 +1181,7 @@ export default function RabbitsPage() {
               {/* Health Status Update */}
               <div className="mt-6 border-t pt-4">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Update Health Status</h3>
-                <form onSubmit={async (e)=>{e.preventDefault(); const form = e.target as HTMLFormElement; const newStatus = (form.elements.namedItem('newHealthStatus') as HTMLSelectElement).value; const note = (form.elements.namedItem('healthNote') as HTMLInputElement).value; try { const res = await fetch('/api/offspring', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id: viewingOffspring.id, overallHealthStatus: newStatus, healthNotes: note }) }); if (res.ok){ const updated = await res.json(); setViewingOffspring(updated); setOffspring(offspring.map(o=> o.id===updated.id? updated : o)); form.reset(); } else { alert('Failed to update status'); } } catch(err){ console.error(err); alert('Error updating status'); } }} className="space-y-3">
+                <form onSubmit={async (e)=>{ e.preventDefault(); const form = e.target as HTMLFormElement; const newStatus = (form.elements.namedItem('newHealthStatus') as HTMLSelectElement).value; const note = (form.elements.namedItem('healthNote') as HTMLInputElement).value; const r = await updateOffspringHealth(viewingOffspring.id, newStatus, note); if (r.ok){ form.reset(); toast.pushToast({ message: 'Updated', type: 'success' }); } else { toast.pushToast({ message: 'Failed to update status', type: 'error' }); } }} className="space-y-3">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">New Status</label>
@@ -1193,7 +1216,6 @@ export default function RabbitsPage() {
                   </div>
                 </div>
               )}
-              <div className="mt-6 flex justify-end"><button onClick={() => setViewingOffspring(null)} className="px-4 py-2 bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-white rounded-lg hover:bg-gray-400 dark:hover:bg-gray-500">Close</button></div>
             </div>
           </div>
         </div>

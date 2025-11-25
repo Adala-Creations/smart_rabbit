@@ -29,7 +29,32 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(offspringDeaths);
+    const formatted = offspringDeaths.map((od) => {
+      const bd = od.birth?.birthDate;
+      const dd = od.deathDate;
+      let ageAtDeath = '-';
+      try {
+        if (bd && dd) {
+          const b = new Date(bd);
+          const de = new Date(dd);
+          if (!isNaN(b.getTime()) && !isNaN(de.getTime()) && de >= b) {
+            let years = de.getFullYear() - b.getFullYear();
+            let months = de.getMonth() - b.getMonth();
+            let days = de.getDate() - b.getDate();
+            if (days < 0) { months -= 1; const prevMonth = new Date(de.getFullYear(), de.getMonth(), 0).getDate(); days += prevMonth; }
+            if (months < 0) { years -= 1; months += 12; }
+            if (years > 0) ageAtDeath = `${years}y${months > 0 ? ` ${months}m` : ''}`;
+            else if (months > 0) ageAtDeath = `${months}m${days > 0 ? ` ${days}d` : ''}`;
+            else ageAtDeath = `${days}d`;
+          }
+        }
+      } catch (e) {
+        /* ignore */
+      }
+      return { ...od, ageAtDeath };
+    });
+
+    return NextResponse.json(formatted);
   } catch (error) {
     console.error('Error fetching offspring deaths:', error);
     return NextResponse.json({ error: 'Failed to fetch offspring deaths' }, { status: 500 });

@@ -19,6 +19,7 @@ export async function GET() {
             doe: true,
           },
         },
+        offspringBatches: true,
       },
       orderBy: { birthDate: 'desc' },
     });

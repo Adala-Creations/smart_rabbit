@@ -1,8 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import useFetchWithLoading from '@/hooks/useFetchWithLoading';
+import { useToast } from '@/components/ToastProvider';
 
 export default function FinancesPage() {
+  const toast = useToast();
   const [sales, setSales] = useState<any[]>([]);
   const [expenses, setExpenses] = useState<any[]>([]);
   const [rabbits, setRabbits] = useState<any[]>([]);
@@ -32,6 +35,7 @@ export default function FinancesPage() {
     notes: '',
   });
 
+  const fetchWithLoading = useFetchWithLoading();
   useEffect(() => {
     fetchData();
   }, []);
@@ -39,9 +43,9 @@ export default function FinancesPage() {
   const fetchData = async () => {
     try {
       const [salesRes, expensesRes, rabbitsRes] = await Promise.all([
-        fetch('/api/sales'),
-        fetch('/api/expenses'),
-        fetch('/api/rabbits'),
+        fetchWithLoading('/api/sales'),
+        fetchWithLoading('/api/expenses'),
+        fetchWithLoading('/api/rabbits'),
       ]);
 
       setSales(await salesRes.json());
@@ -59,7 +63,7 @@ export default function FinancesPage() {
       const method = editingSaleId ? 'PUT' : 'POST';
       const url = '/api/sales';
 
-      const res = await fetch(url, {
+      const res = await fetchWithLoading(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -105,12 +109,12 @@ export default function FinancesPage() {
   const handleSaleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this sale record?')) return;
     try {
-      const res = await fetch(`/api/sales?id=${id}`, { method: 'DELETE' });
+      const res = await fetchWithLoading(`/api/sales?id=${id}`, { method: 'DELETE' });
       if (res.ok) {
         fetchData();
       } else {
         const data = await res.json();
-        alert(data.error || 'Failed to delete sale');
+        toast.pushToast({ message: data.error || 'Failed to delete sale', type: 'error' });
       }
     } catch (error) {
       console.error('Error deleting sale:', error);
@@ -137,7 +141,7 @@ export default function FinancesPage() {
       const method = editingExpenseId ? 'PUT' : 'POST';
       const url = '/api/expenses';
 
-      const res = await fetch(url, {
+      const res = await fetchWithLoading(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -180,12 +184,12 @@ export default function FinancesPage() {
   const handleExpenseDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this expense record?')) return;
     try {
-      const res = await fetch(`/api/expenses?id=${id}`, { method: 'DELETE' });
+      const res = await fetchWithLoading(`/api/expenses?id=${id}`, { method: 'DELETE' });
       if (res.ok) {
         fetchData();
       } else {
         const data = await res.json();
-        alert(data.error || 'Failed to delete expense');
+        toast.pushToast({ message: data.error || 'Failed to delete expense', type: 'error' });
       }
     } catch (error) {
       console.error('Error deleting expense:', error);
