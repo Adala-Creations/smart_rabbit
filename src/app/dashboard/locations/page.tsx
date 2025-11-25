@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import useFetchWithLoading from '@/hooks/useFetchWithLoading';
+import { useConfirm } from '@/components/ConfirmProvider';
 import Breadcrumbs from "./components/Breadcrumbs";
 import Pagination from "./components/Pagination";
 import { useToast } from '@/components/ToastProvider';
@@ -71,6 +72,7 @@ export default function LocationsPage() {
   
 
   const fetchWithLoading = useFetchWithLoading();
+  const confirm = useConfirm();
   const fetchReferenceData = async () => {
     try {
       const [rabRes, cageRes] = await Promise.all([
@@ -143,7 +145,7 @@ export default function LocationsPage() {
   };
 
   const handleLocationDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete location "${name}"? This will also delete all associated rabbitries and cages.`)) return;
+    if (!(await confirm(`Delete location "${name}"? This will also delete all associated rabbitries and cages.`))) return;
     try {
       const res = await fetchWithLoading(`/api/locations?id=${id}`, { method: 'DELETE' });
       if (res.ok) {
@@ -200,7 +202,7 @@ export default function LocationsPage() {
   };
 
   const handleRabbitryDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete rabbitry "${name}"? This will also delete all associated cages.`)) return;
+    if (!(await confirm(`Delete rabbitry "${name}"? This will also delete all associated cages.`))) return;
     try {
       const res = await fetchWithLoading(`/api/rabbitries?id=${id}`, { method: 'DELETE' });
       if (res.ok) {
@@ -263,7 +265,7 @@ export default function LocationsPage() {
   };
 
   const handleCageDelete = async (id: string, cageId: string) => {
-    if (!confirm(`Delete cage "${cageId}"?`)) return;
+    if (!(await confirm(`Delete cage "${cageId}"?`))) return;
     try {
       const res = await fetchWithLoading(`/api/cages?id=${id}`, { method: 'DELETE' });
       if (res.ok) {
@@ -364,7 +366,7 @@ export default function LocationsPage() {
   };
 
   const handleRabbitDelete = async (id: string, rabbitId: string) => {
-    if (!confirm(`Delete rabbit ${rabbitId}? This action cannot be undone.`)) return;
+    if (!(await confirm(`Delete rabbit ${rabbitId}? This action cannot be undone.`))) return;
     try {
       const res = await fetchWithLoading(`/api/rabbits?id=${id}`, { method: 'DELETE' });
       if (res.ok) {

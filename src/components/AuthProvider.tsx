@@ -3,6 +3,7 @@
 import { SessionProvider } from 'next-auth/react';
 import ToastProvider from './ToastProvider';
 import LoadingProvider from './LoadingProvider';
+import ConfirmProvider from './ConfirmProvider';
 
 export default function AuthProvider({
   children,
@@ -12,7 +13,9 @@ export default function AuthProvider({
   return (
     <SessionProvider>
       <LoadingProvider>
-        <ToastProvider>{children}</ToastProvider>
+        <ToastProvider>
+          <ConfirmProvider>{children}</ConfirmProvider>
+        </ToastProvider>
       </LoadingProvider>
     </SessionProvider>
   );

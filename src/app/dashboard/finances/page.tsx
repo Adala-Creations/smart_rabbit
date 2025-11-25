@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import useFetchWithLoading from '@/hooks/useFetchWithLoading';
 import { useToast } from '@/components/ToastProvider';
+import { useConfirm } from '@/components/ConfirmProvider';
 
 export default function FinancesPage() {
   const toast = useToast();
@@ -36,6 +37,7 @@ export default function FinancesPage() {
   });
 
   const fetchWithLoading = useFetchWithLoading();
+  const confirm = useConfirm();
   useEffect(() => {
     fetchData();
   }, []);
@@ -107,7 +109,7 @@ export default function FinancesPage() {
   };
 
   const handleSaleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this sale record?')) return;
+    if (!(await confirm('Are you sure you want to delete this sale record?'))) return;
     try {
       const res = await fetchWithLoading(`/api/sales?id=${id}`, { method: 'DELETE' });
       if (res.ok) {
@@ -182,7 +184,7 @@ export default function FinancesPage() {
   };
 
   const handleExpenseDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this expense record?')) return;
+    if (!(await confirm('Are you sure you want to delete this expense record?'))) return;
     try {
       const res = await fetchWithLoading(`/api/expenses?id=${id}`, { method: 'DELETE' });
       if (res.ok) {

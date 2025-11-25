@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import useFetchWithLoading from '@/hooks/useFetchWithLoading';
 import { useToast } from '@/components/ToastProvider';
+import { useConfirm } from '@/components/ConfirmProvider';
 import { useSession } from 'next-auth/react';
 
 interface User {
@@ -152,8 +153,10 @@ export default function WorkersPage() {
     }
   };
 
+  const confirm = useConfirm();
+
   const handleRemoveWorker = async (id: string) => {
-    if (!confirm('Are you sure you want to remove this worker assignment?')) {
+    if (!(await confirm('Are you sure you want to remove this worker assignment?'))) {
       return;
     }
 
@@ -206,7 +209,7 @@ export default function WorkersPage() {
   };
 
   const handleDeleteUser = async (userId: string) => {
-    if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+    if (!(await confirm('Are you sure you want to delete this user? This action cannot be undone.'))) {
       return;
     }
 
