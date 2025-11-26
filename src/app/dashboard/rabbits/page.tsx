@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import useFetchWithLoading from '@/hooks/useFetchWithLoading';
 import { useToast } from '@/components/ToastProvider';
+import { useConfirm } from '@/components/ConfirmProvider';
 import Link from 'next/link';
 
 interface Rabbit {
@@ -55,6 +56,8 @@ export default function RabbitsPage() {
     count: '',
     weight: '',
     notes: '',
+    cageId: '',
+    compartment: '1',
   });
 
   const fetchWithLoading = useFetchWithLoading();
@@ -241,8 +244,10 @@ export default function RabbitsPage() {
     setShowForm(true);
   };
 
+  const confirm = useConfirm();
+
   const handleDelete = async (id: string, rabbitId: string) => {
-    if (!confirm(`Are you sure you want to delete rabbit ${rabbitId}? This action cannot be undone.`)) {
+    if (!(await confirm(`Are you sure you want to delete rabbit ${rabbitId}? This action cannot be undone.`))) {
       return;
     }
 
@@ -303,7 +308,7 @@ export default function RabbitsPage() {
       if (res.ok) {
         setShowOffspringForm(false);
         setEditingOffspringId(null);
-        setOffspringFormData({ birthId: '', count: '', weight: '', notes: '' });
+        setOffspringFormData({ birthId: '', count: '', weight: '', notes: '', cageId: '', compartment: '1' });
         fetchOffspring();
         toast.pushToast({ message: editingOffspringId ? 'Offspring batch updated!' : 'Offspring batch added!', type: 'success' });
       } else {
@@ -323,12 +328,14 @@ export default function RabbitsPage() {
       count: String(batch.count),
       weight: '',
       notes: batch.notes || '',
+      cageId: batch.cageId || '',
+      compartment: String(batch.compartment || '1'),
     });
     setShowOffspringForm(true);
   };
 
   const handleDeleteOffspring = async (id: string, batchId: string) => {
-    if (!confirm(`Delete batch ${batchId}?`)) return;
+    if (!(await confirm(`Delete batch ${batchId}?`))) return;
 
     try {
       const res = await fetchWithLoading(`/api/offspring?id=${id}`, { method: 'DELETE' });
@@ -395,7 +402,7 @@ export default function RabbitsPage() {
             onClick={() => {
               setEditingOffspringId(null);
               setShowOffspringForm(!showOffspringForm);
-              if (showOffspringForm) setOffspringFormData({ birthId: '', count: '', weight: '', notes: '' });
+              if (showOffspringForm) setOffspringFormData({ birthId: '', count: '', weight: '', notes: '', cageId: '', compartment: '1' });
             }}
             className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
           >
@@ -457,6 +464,41 @@ export default function RabbitsPage() {
               {eligibleBirths.length === 0 && (
                 <div className="mt-2 text-sm text-gray-500">No available births without an offspring batch.</div>
               )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Cage (where offspring will be placed)
+              </label>
+              <select
+                required
+                value={offspringFormData.cageId}
+                onChange={(e) => setOffspringFormData({ ...offspringFormData, cageId: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              >
+                <option value="">Select Cage</option>
+                {cages.map((c:any) => (
+                  <option key={c.id} value={c.id}>{c.cageId} ({c.type})</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Compartment
+              </label>
+              <select
+                required
+                value={offspringFormData.compartment}
+                onChange={(e) => setOffspringFormData({ ...offspringFormData, compartment: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              >
+                {(() => {
+                  const selected = cages.find((x:any) => x.id === offspringFormData.cageId);
+                  const count = selected?.compartments || 1;
+                  const options = [] as any[];
+                  for (let i = 1; i <= count; i++) options.push(<option key={i} value={String(i)}>{i}</option>);
+                  return options;
+                })()}
+              </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -1041,8 +1083,10 @@ export default function RabbitsPage() {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Birth Date</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Parents</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Count</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Age (days / wks)</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Age (days / wks)</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Latest Weight</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Cage</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Compartment</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Batch Status</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Health</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
@@ -1064,6 +1108,8 @@ export default function RabbitsPage() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{batch.count}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{ageDays}d ({ageWeeks}w)</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{latestWeight ? `${latestWeight} kg` : '-'}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{batch.cage?.cageId ?? '-'}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{batch.compartment ?? '-'}</td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 py-1 text-xs rounded-full ${
                       batch.status === 'ACTIVE' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
@@ -1135,6 +1181,8 @@ export default function RabbitsPage() {
                 <div className="text-sm">Count: {viewingOffspring.count}</div>
                 <div className="text-sm">Birth Date: {new Date(viewingOffspring.birth.birthDate).toLocaleDateString()}</div>
                 <div className="text-sm">Age: {(() => { const d = Math.floor((Date.now() - new Date(viewingOffspring.birth.birthDate).getTime())/(1000*60*60*24)); const w = Math.floor(d/7); return `${d} days (${w} weeks)`; })()}</div>
+                <div className="text-sm">Cage: {viewingOffspring.cage?.cageId ?? '-'}</div>
+                <div className="text-sm">Compartment: {viewingOffspring.compartment ?? '-'}</div>
               </div>
               {(viewingOffspring.birth.mating?.buck || viewingOffspring.birth.mating?.doe) && (
                 <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">

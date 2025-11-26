@@ -25,6 +25,7 @@ export async function GET() {
         },
         weights: { orderBy: { measurementDate: 'desc' } },
         healthHistory: { orderBy: { createdAt: 'desc' } },
+        cage: true,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -44,7 +45,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { birthId, count, notes, weight, overallHealthStatus } = await req.json();
+    const { birthId, count, notes, weight, overallHealthStatus, cageId, compartment } = await req.json();
 
     if (!birthId || !count) {
       return NextResponse.json(
@@ -72,12 +73,33 @@ export async function POST(req: Request) {
     }
     const batchId = `BTC-${String(nextNumber).padStart(3, '0')}`;
 
+    // Ensure cageId exists in DB; if not provided, use BC-001 default (create if necessary)
+    let targetCageId = cageId;
+    if (!targetCageId) {
+      let defaultCage = await prisma.cage.findFirst({ where: { cageId: 'BC-001' } });
+      if (!defaultCage) {
+        // Create default location/rabbitry/cage
+        let location = await prisma.location.findFirst();
+        if (!location) {
+          location = await prisma.location.create({ data: { name: 'Default Location', type: 'farm', userId: (session.user as any).id } });
+        }
+        let rabbitry = await prisma.rabbitry.findFirst({ where: { locationId: location.id } });
+        if (!rabbitry) {
+          rabbitry = await prisma.rabbitry.create({ data: { name: 'Default Rabbitry', locationId: location.id, ownerId: (session.user as any).id } });
+        }
+        defaultCage = await prisma.cage.create({ data: { cageId: 'BC-001', rabbitryId: rabbitry.id, type: 'BREEDING', capacity: 10, compartments: 1 } });
+      }
+      targetCageId = defaultCage.id;
+    }
+
     const batch = await prisma.offspringBatch.create({
       data: {
         batchId,
         birthId,
         count: parseInt(count),
         notes,
+        ...(targetCageId && { cageId: targetCageId }),
+        ...(compartment !== undefined && { compartment: parseInt(compartment) }),
         ...(overallHealthStatus && { overallHealthStatus }),
       },
       include: {
@@ -92,6 +114,7 @@ export async function POST(req: Request) {
           },
         },
         healthHistory: true,
+        cage: true,
       },
     });
 
@@ -130,7 +153,7 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id, count, status, notes, overallHealthStatus, healthNotes } = await req.json();
+    const { id, count, status, notes, overallHealthStatus, healthNotes, cageId, compartment } = await req.json();
 
     if (!id) {
       return NextResponse.json({ error: 'Batch ID is required' }, { status: 400 });
@@ -149,6 +172,8 @@ export async function PUT(req: Request) {
         ...(status !== undefined && { status }),
         ...(notes !== undefined && { notes }),
         ...(overallHealthStatus && { overallHealthStatus }),
+        ...(cageId !== undefined && { cageId }),
+        ...(compartment !== undefined && { compartment: parseInt(compartment) }),
       },
       include: {
         birth: {
@@ -163,6 +188,7 @@ export async function PUT(req: Request) {
         },
         weights: { orderBy: { measurementDate: 'desc' } },
         healthHistory: { orderBy: { createdAt: 'desc' } },
+        cage: true,
       },
     });
 
@@ -183,6 +209,7 @@ export async function PUT(req: Request) {
         birth: { include: { mating: { include: { buck: { include: { cage: true } }, doe: { include: { cage: true } } } } } },
         weights: { orderBy: { measurementDate: 'desc' } },
         healthHistory: { orderBy: { createdAt: 'desc' } },
+        cage: true,
       },
     });
     return NextResponse.json(updated);

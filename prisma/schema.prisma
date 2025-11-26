@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,27 +7,21 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum UserRole {
-  OWNER
-  WORKER
-}
-
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String    @unique
-  emailVerified DateTime?
-  image         String?
-  password      String
-  role          UserRole  @default(OWNER)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  accounts      Account[]
-  sessions      Session[]
-  locations     Location[]
-  ownedRabbitries Rabbitry[] @relation("OwnedRabbitries")
+  id                String           @id @default(cuid())
+  name              String?
+  email             String           @unique
+  emailVerified     DateTime?
+  image             String?
+  password          String
+  role              UserRole         @default(OWNER)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  accounts          Account[]
+  locations         Location[]
+  ownedRabbitries   Rabbitry[]       @relation("OwnedRabbitries")
   workerAssignments RabbitryWorker[]
+  sessions          Session[]
 }
 
 model Account {
@@ -39,15 +30,14 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
@@ -69,65 +59,225 @@ model VerificationToken {
 }
 
 model Location {
-  id          String      @id @default(cuid())
+  id          String     @id @default(cuid())
   name        String
   description String?
-  type        String      // e.g., "farm", "backyard", etc.
+  type        String
   address     String?
   userId      String
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-
-  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   rabbitries  Rabbitry[]
 }
 
 model Rabbitry {
-  id          String   @id @default(cuid())
+  id          String           @id @default(cuid())
   name        String
   description String?
   locationId  String
-  ownerId     String   // The user who created this rabbitry
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  location    Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
-  owner       User     @relation("OwnedRabbitries", fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId     String
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
   cages       Cage[]
+  location    Location         @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  owner       User             @relation("OwnedRabbitries", fields: [ownerId], references: [id], onDelete: Cascade)
   workers     RabbitryWorker[]
 }
 
 model RabbitryWorker {
-  id          String   @id @default(cuid())
-  rabbitryId  String
-  userId      String
-  role        String   @default("worker") // e.g., "manager", "worker", "supervisor"
-  assignedAt  DateTime @default(now())
-  
-  rabbitry    Rabbitry @relation(fields: [rabbitryId], references: [id], onDelete: Cascade)
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id         String   @id @default(cuid())
+  rabbitryId String
+  userId     String
+  role       String   @default("worker")
+  assignedAt DateTime @default(now())
+  rabbitry   Rabbitry @relation(fields: [rabbitryId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([rabbitryId, userId])
 }
 
-enum CageType {
-  BREEDING  // BC- prefix
-  WEANER    // WC- prefix
+model Cage {
+  id               String           @id @default(cuid())
+  cageId           String           @unique
+  type             CageType
+  rabbitryId       String
+  capacity         Int              @default(1)
+  compartments     Int              @default(1)
+  description      String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  rabbitry         Rabbitry         @relation(fields: [rabbitryId], references: [id], onDelete: Cascade)
+  offspringBatches OffspringBatch[]
+  rabbits          Rabbit[]
 }
 
-model Cage {
+model Rabbit {
+  id                String              @id @default(cuid())
+  rabbitId          String              @unique
+  name              String?
+  gender            RabbitGender
+  breed             String
+  dateOfBirth       DateTime?
+  cageId            String
+  status            RabbitStatus        @default(ACTIVE)
+  healthStatus      HealthStatus        @default(HEALTHY)
+  healthDescription String?
+  color             String?
+  motherId          String?
+  fatherId          String?
+  notes             String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  compartment       Int                 @default(1)
+  deaths            Death[]
+  matingsAsBuck     Mating[]            @relation("BuckMatings")
+  matingsAsDoe      Mating[]            @relation("DoeMatings")
+  cage              Cage                @relation(fields: [cageId], references: [id])
+  father            Rabbit?             @relation("RabbitSire", fields: [fatherId], references: [id])
+  siredRabbits      Rabbit[]            @relation("RabbitSire")
+  mother            Rabbit?             @relation("RabbitOffspring", fields: [motherId], references: [id])
+  offspring         Rabbit[]            @relation("RabbitOffspring")
+  sales             Sale[]
+  weights           WeightMeasurement[]
+}
+
+model Mating {
+  id                   String    @id @default(cuid())
+  buckId               String
+  doeId                String
+  matingDate           DateTime
+  expectedKindlingDate DateTime?
+  successful           Boolean   @default(false)
+  notes                String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  births               Birth[]
+  buck                 Rabbit    @relation("BuckMatings", fields: [buckId], references: [id])
+  doe                  Rabbit    @relation("DoeMatings", fields: [doeId], references: [id])
+}
+
+model Birth {
+  id               String           @id @default(cuid())
+  matingId         String
+  birthDate        DateTime
+  totalKits        Int
+  aliveKits        Int
+  deadKits         Int              @default(0)
+  notes            String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  mating           Mating           @relation(fields: [matingId], references: [id], onDelete: Cascade)
+  offspringBatches OffspringBatch[]
+  offspringDeaths  OffspringDeath[]
+}
+
+model OffspringBatch {
+  id                  String                        @id @default(cuid())
+  batchId             String                        @unique
+  birthId             String
+  count               Int
+  status              String                        @default("ACTIVE")
+  notes               String?
+  createdAt           DateTime                      @default(now())
+  updatedAt           DateTime                      @updatedAt
+  overallHealthStatus OffspringHealthStatus         @default(HEALTHY)
+  cageId              String?
+  compartment         Int?                          @default(1)
+  birth               Birth                         @relation(fields: [birthId], references: [id], onDelete: Cascade)
+  cage                Cage?                         @relation(fields: [cageId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cage")
+  healthHistory       OffspringBatchHealthHistory[]
+  weights             OffspringWeight[]
+}
+
+model OffspringBatchHealthHistory {
+  id        String                @id @default(cuid())
+  batchId   String
+  status    OffspringHealthStatus
+  notes     String?
+  createdAt DateTime              @default(now())
+  batch     OffspringBatch        @relation(fields: [batchId], references: [id], onDelete: Cascade)
+}
+
+model OffspringDeath {
+  id        String   @id @default(cuid())
+  birthId   String
+  deathDate DateTime
+  count     Int      @default(1)
+  cause     String?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  birth     Birth    @relation(fields: [birthId], references: [id], onDelete: Cascade)
+}
+
+model Death {
+  id        String   @id @default(cuid())
+  rabbitId  String
+  deathDate DateTime
+  cause     String?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  rabbit    Rabbit   @relation(fields: [rabbitId], references: [id], onDelete: Cascade)
+}
+
+model WeightMeasurement {
+  id              String   @id @default(cuid())
+  rabbitId        String
+  weight          Float
+  measurementDate DateTime
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  rabbit          Rabbit   @relation(fields: [rabbitId], references: [id], onDelete: Cascade)
+}
+
+model OffspringWeight {
+  id              String         @id @default(cuid())
+  batchId         String
+  weight          Float
+  measurementDate DateTime
+  notes           String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  batch           OffspringBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+}
+
+model Sale {
+  id           String   @id @default(cuid())
+  rabbitId     String?
+  description  String
+  amount       Float
+  saleDate     DateTime
+  buyerName    String?
+  buyerContact String?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  rabbit       Rabbit?  @relation(fields: [rabbitId], references: [id])
+}
+
+model Expense {
   id          String   @id @default(cuid())
-  cageId      String   @unique // BC-001, WC-001, etc.
-  type        CageType
-  rabbitryId  String
-  capacity    Int      @default(1)
-  compartments Int     @default(1) // Number of compartments in the cage
-  description String?
+  description String
+  category    String
+  amount      Float
+  expenseDate DateTime
+  vendor      String?
+  notes       String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
 
-  rabbitry    Rabbitry @relation(fields: [rabbitryId], references: [id], onDelete: Cascade)
-  rabbits     Rabbit[]
+enum UserRole {
+  OWNER
+  WORKER
+}
+
+enum CageType {
+  BREEDING
+  WEANER
 }
 
 enum RabbitGender {
@@ -148,180 +298,13 @@ enum HealthStatus {
   INJURED
 }
 
-model Rabbit {
-  id              String        @id @default(cuid())
-  rabbitId        String        @unique // B-001 for bucks, D-001 for does
-  name            String?
-  gender          RabbitGender
-  breed           String
-  dateOfBirth     DateTime?
-  cageId          String
-  compartment     Int           @default(1) // Which compartment in the cage
-  status          RabbitStatus  @default(ACTIVE)
-  healthStatus    HealthStatus  @default(HEALTHY)
-  healthDescription String?
-  color           String?
-  motherId        String?
-  fatherId        String?
-  notes           String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-
-  cage            Cage          @relation(fields: [cageId], references: [id])
-  mother          Rabbit?       @relation("RabbitOffspring", fields: [motherId], references: [id], onDelete: SetNull)
-  father          Rabbit?       @relation("RabbitSire", fields: [fatherId], references: [id], onDelete: SetNull)
-  
-  offspring       Rabbit[]      @relation("RabbitOffspring")
-  siredRabbits    Rabbit[]      @relation("RabbitSire")
-  
-  matingsAsBuck   Mating[]      @relation("BuckMatings")
-  matingsAsDoe    Mating[]      @relation("DoeMatings")
-  weights         WeightMeasurement[]
-  deaths          Death[]
-  sales           Sale[]
-}
-
-model Mating {
-  id              String    @id @default(cuid())
-  buckId          String
-  doeId           String
-  matingDate      DateTime
-  expectedKindlingDate DateTime?
-  successful      Boolean   @default(false)
-  notes           String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  buck            Rabbit    @relation("BuckMatings", fields: [buckId], references: [id])
-  doe             Rabbit    @relation("DoeMatings", fields: [doeId], references: [id])
-  births          Birth[]
-}
-
-model Birth {
-  id              String    @id @default(cuid())
-  matingId        String
-  birthDate       DateTime
-  totalKits       Int
-  aliveKits       Int
-  deadKits        Int       @default(0)
-  notes           String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  mating          Mating    @relation(fields: [matingId], references: [id], onDelete: Cascade)
-  offspringDeaths OffspringDeath[]
-  offspringBatches OffspringBatch[]
-}
-
-model OffspringBatch {
-  id              String    @id @default(cuid())
-  batchId         String    @unique // BTC-001, BTC-002, etc.
-  birthId         String
-  count           Int       // Number of kits in this batch
-  status          String    @default("ACTIVE") // ACTIVE, SEXED, SOLD, DECEASED, WEANED
-  overallHealthStatus OffspringHealthStatus @default(HEALTHY)
-  notes           String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  birth           Birth     @relation(fields: [birthId], references: [id], onDelete: Cascade)
-  weights         OffspringWeight[]
-  healthHistory   OffspringBatchHealthHistory[]
-}
-
 enum OffspringHealthStatus {
   HEALTHY
   SICK
   INJURED
 }
 
-model OffspringBatchHealthHistory {
-  id        String               @id @default(cuid())
-  batchId   String
-  status    OffspringHealthStatus
-  notes     String?
-  createdAt DateTime             @default(now())
-
-  batch     OffspringBatch       @relation(fields: [batchId], references: [id], onDelete: Cascade)
-}
-
-model OffspringDeath {
-  id          String   @id @default(cuid())
-  birthId     String
-  deathDate   DateTime
-  count       Int      @default(1) // Number of kits that died
-  cause       String?
-  notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  birth       Birth    @relation(fields: [birthId], references: [id], onDelete: Cascade)
-}
-
-model Death {
-  id          String   @id @default(cuid())
-  rabbitId    String
-  deathDate   DateTime
-  cause       String?
-  notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  rabbit      Rabbit   @relation(fields: [rabbitId], references: [id], onDelete: Cascade)
-}
-
-model WeightMeasurement {
-  id              String   @id @default(cuid())
-  rabbitId        String
-  weight          Float    // in kg or lbs
-  measurementDate DateTime
-  notes           String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  rabbit          Rabbit   @relation(fields: [rabbitId], references: [id], onDelete: Cascade)
-}
-
-model OffspringWeight {
-  id              String   @id @default(cuid())
-  batchId         String
-  weight          Float    // Average weight in kg or lbs
-  measurementDate DateTime
-  notes           String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  batch           OffspringBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
-}
-
 enum TransactionType {
   SALE
   EXPENSE
-}
-
-model Sale {
-  id          String   @id @default(cuid())
-  rabbitId    String?
-  description String
-  amount      Float
-  saleDate    DateTime
-  buyerName   String?
-  buyerContact String?
-  notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  rabbit      Rabbit?  @relation(fields: [rabbitId], references: [id], onDelete: SetNull)
-}
-
-model Expense {
-  id          String   @id @default(cuid())
-  description String
-  category    String   // e.g., "Feed", "Medical", "Equipment", "Maintenance"
-  amount      Float
-  expenseDate DateTime
-  vendor      String?
-  notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
 }
