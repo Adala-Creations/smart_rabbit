@@ -2,14 +2,21 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { validateSexingCounts } from '@/lib/offspring';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const url = new URL(req.url);
+    const status = url.searchParams.get('status');
+    const page = parseInt(url.searchParams.get('page') || '1');
+    const pageSize = parseInt(url.searchParams.get('pageSize') || '50');
+    const where = status ? { status } : undefined;
 
     const offspring = await prisma.offspringBatch.findMany({
       include: {
@@ -27,10 +34,14 @@ export async function GET() {
         healthHistory: { orderBy: { createdAt: 'desc' } },
         cage: true,
       },
-      orderBy: { createdAt: 'desc' },
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
     });
 
-    return NextResponse.json(offspring);
+    const total = await prisma.offspringBatch.count({ where });
+    return NextResponse.json({ items: offspring, total, page, pageSize });
   } catch (error) {
     console.error('Error fetching offspring:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -153,16 +164,28 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id, count, status, notes, overallHealthStatus, healthNotes, cageId, compartment } = await req.json();
+    const { id, count, status, notes, overallHealthStatus, healthNotes, cageId, compartment, maleCount, femaleCount, sexedAt } = await req.json();
 
     if (!id) {
       return NextResponse.json({ error: 'Batch ID is required' }, { status: 400 });
     }
 
-    // Fetch existing to compare health status
+    // Fetch existing to compare health status and original count
     const existing = await prisma.offspringBatch.findUnique({ where: { id } });
     if (!existing) {
       return NextResponse.json({ error: 'Batch not found' }, { status: 404 });
+    }
+
+    // NOTE: This endpoint now only supports the legacy "one batch with male/female counts" flow.
+    // New-style sexing (splitting into multiple batches) is handled by the /api/offspring/split route.
+    // We keep the validation here so old data can still be updated safely.
+    if (status === 'SEXED') {
+      const male = maleCount !== undefined ? Number(maleCount as any) : existing?.maleCount ?? null;
+      const female = femaleCount !== undefined ? Number(femaleCount as any) : existing?.femaleCount ?? null;
+      const currentCount = count !== undefined ? Number(count as any) : existing?.count ?? 0;
+      if (!validateSexingCounts(currentCount, male, female)) {
+        return NextResponse.json({ error: 'Male + Female must equal total count when marking as SEXED' }, { status: 400 });
+      }
     }
 
     const batch = await prisma.offspringBatch.update({
@@ -174,6 +197,9 @@ export async function PUT(req: Request) {
         ...(overallHealthStatus && { overallHealthStatus }),
         ...(cageId !== undefined && { cageId }),
         ...(compartment !== undefined && { compartment: parseInt(compartment) }),
+        ...(maleCount !== undefined && { maleCount: parseInt(maleCount) }),
+        ...(femaleCount !== undefined && { femaleCount: parseInt(femaleCount) }),
+        ...(sexedAt !== undefined && { sexedAt: new Date(sexedAt) }),
       },
       include: {
         birth: {

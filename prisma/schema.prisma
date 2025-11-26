@@ -179,15 +179,25 @@ model OffspringBatch {
   count               Int
   status              String                        @default("ACTIVE")
   notes               String?
+  /// For new-style sexing: if this batch came from splitting another batch, link back to the source.
+  /// Existing data will have this field null.
+  sourceBatchId       String?
   createdAt           DateTime                      @default(now())
   updatedAt           DateTime                      @updatedAt
   overallHealthStatus OffspringHealthStatus         @default(HEALTHY)
   cageId              String?
   compartment         Int?                          @default(1)
+  maleCount           Int?
+  femaleCount         Int?
+  sexedAt             DateTime?                     @db.Timestamptz(6)
   birth               Birth                         @relation(fields: [birthId], references: [id], onDelete: Cascade)
   cage                Cage?                         @relation(fields: [cageId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cage")
   healthHistory       OffspringBatchHealthHistory[]
   weights             OffspringWeight[]
+  /// When this batch is a source of sexed/split batches, the relationship is represented
+  /// via the `sourceBatchId` field on the child batches. This is mainly for logical grouping;
+  /// we don't enforce a Prisma relation to avoid breaking existing data.
+  // sexedBatches        OffspringBatch[]             @relation("OffspringBatchSexedChildren")
 }
 
 model OffspringBatchHealthHistory {

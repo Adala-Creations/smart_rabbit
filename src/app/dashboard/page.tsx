@@ -52,7 +52,9 @@ export default function DashboardPage() {
 
         // Fetch offspring batches
         const offspringRes = await fetchWithLoading('/api/offspring');
-        const offspringBatches = await offspringRes.json();
+        const offspringResponse = await offspringRes.json();
+        // API can return either an array of batches or a paginated { items, total, page, pageSize }
+        const offspringBatches = Array.isArray(offspringResponse) ? offspringResponse : (offspringResponse?.items || []);
         setOffspring(offspringBatches);
 
         // Fetch matings
@@ -93,9 +95,9 @@ export default function DashboardPage() {
         const adultSick = rabbits.filter((r:any)=> r.status !== 'DECEASED' && r.healthStatus === 'SICK').length;
         const adultInjured = rabbits.filter((r:any)=> r.status !== 'DECEASED' && r.healthStatus === 'INJURED').length;
         // Offspring batch health counts
-        const offspringHealthy = offspringBatches.filter((b:any)=> b.overallHealthStatus === 'HEALTHY').length;
-        const offspringSick = offspringBatches.filter((b:any)=> b.overallHealthStatus === 'SICK').length;
-        const offspringInjured = offspringBatches.filter((b:any)=> b.overallHealthStatus === 'INJURED').length;
+        const offspringHealthy = Array.isArray(offspringBatches) ? offspringBatches.filter((b:any)=> b.overallHealthStatus === 'HEALTHY').length : 0;
+        const offspringSick = Array.isArray(offspringBatches) ? offspringBatches.filter((b:any)=> b.overallHealthStatus === 'SICK').length : 0;
+        const offspringInjured = Array.isArray(offspringBatches) ? offspringBatches.filter((b:any)=> b.overallHealthStatus === 'INJURED').length : 0;
         setStats({
           totalRabbits: rabbits.length + totalOffspringCount,
           pendingMatings,
@@ -134,7 +136,8 @@ export default function DashboardPage() {
           }
         });
         // Offspring ready for sexing (≥42 days old)
-        offspringBatches.forEach((batch: any) => {
+        const offspringList = Array.isArray(offspringBatches) ? offspringBatches : [];
+        offspringList.forEach((batch: any) => {
           const birthDate = new Date(batch.birth.birthDate);
           const days = (Date.now() - birthDate.getTime()) / (1000*60*60*24);
           if (batch.status === 'ACTIVE' && days >= 42) {

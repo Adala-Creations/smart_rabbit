@@ -26,6 +26,10 @@ export default function RabbitsPage() {
   const toast = useToast();
   const [rabbits, setRabbits] = useState<Rabbit[]>([]);
   const [offspring, setOffspring] = useState<any[]>([]);
+  const [offspringView, setOffspringView] = useState<'kits'|'growers'>('kits');
+  const [offspringTotal, setOffspringTotal] = useState<number>(0);
+  const [offspringPage, setOffspringPage] = useState<number>(1);
+  const [offspringPageSize, setOffspringPageSize] = useState<number>(50);
   const [births, setBirths] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -36,6 +40,13 @@ export default function RabbitsPage() {
   const [editingOffspringId, setEditingOffspringId] = useState<string | null>(null);
   const [viewingRabbit, setViewingRabbit] = useState<any | null>(null);
   const [viewingOffspring, setViewingOffspring] = useState<any | null>(null);
+  const [showSexModal, setShowSexModal] = useState(false);
+  const [sexModalData, setSexModalData] = useState<{ 
+    id: string; 
+    batchId: string; 
+    count: number; 
+    groups: { id: string; maleCount: string; femaleCount: string; cageId: string; compartment: string; }[];
+  }>({ id: '', batchId: '', count: 0, groups: [] });
   const [rabbitRecords, setRabbitRecords] = useState<any>(null);
   const [formData, setFormData] = useState({
     rabbitId: '',
@@ -63,10 +74,14 @@ export default function RabbitsPage() {
   const fetchWithLoading = useFetchWithLoading();
   useEffect(() => {
     fetchRabbits();
-    fetchOffspring();
     fetchCages();
     fetchBirths();
   }, []);
+
+  useEffect(() => {
+    // refresh offspring when view or page changes
+    fetchOffspring(offspringPage, offspringPageSize);
+  }, [offspringView, offspringPage, offspringPageSize]);
 
   const fetchRabbits = async () => {
     try {
@@ -80,11 +95,16 @@ export default function RabbitsPage() {
     }
   };
 
-  const fetchOffspring = async () => {
+  const fetchOffspring = async (page = 1, pageSize = 50) => {
     try {
-      const res = await fetchWithLoading('/api/offspring');
+      const status = offspringView === 'growers' ? 'SEXED' : 'ACTIVE';
+      const res = await fetchWithLoading(`/api/offspring?status=${status}&page=${page}&pageSize=${pageSize}`);
       const data = await res.json();
-      setOffspring(data);
+      // server returns { items, total, page, pageSize }
+      setOffspring(data.items || data);
+      setOffspringTotal(data.total || 0);
+      setOffspringPage(data.page || page);
+      setOffspringPageSize(data.pageSize || pageSize);
     } catch (error) {
       console.error('Error fetching offspring:', error);
     }
@@ -332,6 +352,116 @@ export default function RabbitsPage() {
       compartment: String(batch.compartment || '1'),
     });
     setShowOffspringForm(true);
+  };
+
+  const openSexModal = (batch: any) => {
+    console.log('Opening sex modal for batch:', batch.batchId, 'status:', batch.status);
+    // Enforce 6+ weeks rule for sexing
+    const birthDate = new Date(batch.birth.birthDate);
+    const ageDays = Math.floor((Date.now() - birthDate.getTime()) / (1000 * 60 * 60 * 24));
+    const ageWeeks = Math.floor(ageDays / 7);
+    if (ageWeeks < 6) {
+      toast.pushToast({ message: 'Kits must be at least 6 weeks old before sexing.', type: 'info' });
+      return;
+    }
+
+    // Initialise with a single group defaulting to "all as females" to keep old behaviour simple.
+    setSexModalData({
+      id: batch.id,
+      batchId: batch.batchId,
+      count: batch.count,
+      groups: [
+        {
+          id: `g-${Date.now()}-0`,
+          maleCount: '',
+          femaleCount: String(batch.count),
+          cageId: batch.cageId || batch.cage?.id || '',
+          compartment: String(batch.compartment || '1'),
+        },
+      ],
+    });
+    setShowSexModal(true);
+  };
+
+  const handleSexSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Sum all group counts and validate they match the source batch total
+    const totals = sexModalData.groups.map((g) => ({
+      male: parseInt(g.maleCount || '0', 10) || 0,
+      female: parseInt(g.femaleCount || '0', 10) || 0,
+    }));
+
+    const totalMale = totals.reduce((s, t) => s + t.male, 0);
+    const totalFemale = totals.reduce((s, t) => s + t.female, 0);
+    const grandTotal = totalMale + totalFemale;
+
+    if (grandTotal !== sexModalData.count) {
+      toast.pushToast({ message: 'Sum of all group males and females must equal the batch count.', type: 'error' });
+      return;
+    }
+
+    const answer = await confirm(
+      `Sex batch ${sexModalData.batchId} into ${sexModalData.groups.length} group(s) ` +
+        `(${totalMale} male, ${totalFemale} female). ` +
+        'This will create new batches and archive the original.'
+    );
+    if (!answer) return;
+
+    try {
+      const payload = {
+        sourceBatchId: sexModalData.id,
+        newBatches: sexModalData.groups.map((g) => ({
+          count: (parseInt(g.maleCount || '0', 10) || 0) + (parseInt(g.femaleCount || '0', 10) || 0),
+          maleCount: g.maleCount ? parseInt(g.maleCount, 10) : undefined,
+          femaleCount: g.femaleCount ? parseInt(g.femaleCount, 10) : undefined,
+          cageId: g.cageId || undefined,
+          compartment: g.compartment ? parseInt(g.compartment, 10) : undefined,
+        })),
+      };
+
+      const res = await fetchWithLoading('/api/offspring/split', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        setShowSexModal(false);
+        setSexModalData({ id: '', batchId: '', count: 0, groups: [] });
+        fetchOffspring(offspringPage, offspringPageSize);
+        toast.pushToast({ message: 'Offspring batch sexed into new groups.', type: 'success' });
+      } else {
+        const data = await res.json();
+        toast.pushToast({ message: data.error || 'Failed to sex batch', type: 'error' });
+      }
+    } catch (error) {
+      console.error('Error sexing batch:', error);
+      toast.pushToast({ message: 'Failed to sex batch', type: 'error' });
+    }
+  };
+
+  const handleAddSexGroup = () => {
+    setSexModalData((prev) => ({
+      ...prev,
+      groups: [
+        ...prev.groups,
+        {
+          id: `g-${Date.now()}-${prev.groups.length}`,
+          maleCount: '',
+          femaleCount: '',
+          cageId: '',
+          compartment: '1',
+        },
+      ],
+    }));
+  };
+
+  const handleRemoveSexGroup = (groupId: string) => {
+    setSexModalData((prev) => ({
+      ...prev,
+      groups: prev.groups.filter((g) => g.id !== groupId),
+    }));
   };
 
   const handleDeleteOffspring = async (id: string, batchId: string) => {
@@ -1076,6 +1206,18 @@ export default function RabbitsPage() {
       {/* Offspring Table - Mobile Responsive with Scroll */}
       {activeTab === 'offspring' && (
       <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-x-auto">
+        <div className="flex items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-2">
+            <button onClick={() => { setOffspringView('kits'); setOffspringPage(1); }} className={`px-3 py-1 rounded ${offspringView === 'kits' ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'}`}>Kits</button>
+            <button onClick={() => { setOffspringView('growers'); setOffspringPage(1); }} className={`px-3 py-1 rounded ${offspringView === 'growers' ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'}`}>Growers</button>
+            {/* <div className="text-sm text-gray-600 dark:text-gray-400 ml-4">Total: {offspringTotal}</div> */}
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => { if (offspringPage > 1) { setOffspringPage(p => p - 1); fetchOffspring(offspringPage - 1, offspringPageSize); } }} className="px-2 py-1 rounded border border-gray-300 dark:border-gray-700">Prev</button>
+            <div className="text-sm text-gray-500">Page {offspringPage}</div>
+            <button onClick={() => { if (offspringPage * offspringPageSize < offspringTotal) { setOffspringPage(p => p + 1); fetchOffspring(offspringPage + 1, offspringPageSize); } }} className="px-2 py-1 rounded border border-gray-300 dark:border-gray-700">Next</button>
+          </div>
+        </div>
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-900">
             <tr>
@@ -1083,10 +1225,18 @@ export default function RabbitsPage() {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Birth Date</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Parents</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Count</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Age (days / wks)</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Latest Weight</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Cage</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Age (days / wks)</th>
+              {/* <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Latest Weight</th> */}
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Cage</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Compartment</th>
+              {offspringView === 'growers' && (
+                <>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Male</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Female</th>
+                </>
+              )}
+
+
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Batch Status</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Health</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
@@ -1107,9 +1257,15 @@ export default function RabbitsPage() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{doe} × {buck}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{batch.count}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{ageDays}d ({ageWeeks}w)</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{latestWeight ? `${latestWeight} kg` : '-'}</td>
+                  {/* <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{latestWeight ? `${latestWeight} kg` : '-'}</td> */}
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{batch.cage?.cageId ?? '-'}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{batch.compartment ?? '-'}</td>
+                  {offspringView === 'growers' && (
+                    <>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{batch.maleCount ?? '-'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{batch.femaleCount ?? '-'}</td>
+                    </>
+                  )}
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 py-1 text-xs rounded-full ${
                       batch.status === 'ACTIVE' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
@@ -1141,12 +1297,48 @@ export default function RabbitsPage() {
                     >
                       Edit
                     </button>
-                    <button
+                    {/* <button
                       onClick={() => handleAddOffspringWeight(batch.id)}
                       className="text-purple-600 hover:text-purple-900 dark:text-purple-400 dark:hover:text-purple-300"
                     >
                       +Weight
-                    </button>
+                    </button> */}
+                    {(batch.status === 'ACTIVE' || !batch.status || batch.status === '') && (
+                      <button
+                        onClick={() => openSexModal(batch)}
+                        className="text-blue-500 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                        title="Sex this batch (6+ weeks old required)"
+                      >
+                        Sex
+                      </button>
+                    )}
+                    {batch.status === 'SEXED' && batch.sourceBatchId && (
+                      <button
+                        onClick={async () => {
+                          if (!(await confirm(`Revert sexing for batches created from source ${batch.batchId}?`))) return;
+                          try {
+                            const res = await fetchWithLoading('/api/offspring/revert-sexing', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ batchId: batch.id }),
+                            });
+                            if (res.ok) {
+                              fetchOffspring(offspringPage, offspringPageSize);
+                              toast.pushToast({ message: 'Sexing reverted back to kits.', type: 'success' });
+                            } else {
+                              const data = await res.json();
+                              toast.pushToast({ message: data.error || 'Failed to revert sexing', type: 'error' });
+                            }
+                          } catch (err) {
+                            console.error('Error reverting sexing:', err);
+                            toast.pushToast({ message: 'Failed to revert sexing', type: 'error' });
+                          }
+                        }}
+                        className="text-orange-600 hover:text-orange-900 dark:text-orange-400 dark:hover:text-orange-300"
+                      >
+                        Revert Sexing
+                      </button>
+                    )}
                     <button
                       onClick={() => handleDeleteOffspring(batch.id, batch.batchId)}
                       className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
@@ -1265,6 +1457,131 @@ export default function RabbitsPage() {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+      {showSexModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4" onClick={() => setShowSexModal(false)}>
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-4" onClick={(e)=>e.stopPropagation()}>
+            <h3 className="text-lg font-semibold mb-2">Sex Offspring Batch {sexModalData.batchId}</h3>
+            <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
+              Split this batch into one or more groups. Each group can have its own male/female counts and cage/compartment.
+              The total of all groups must equal {sexModalData.count} kits.
+            </p>
+            <form onSubmit={handleSexSubmit} className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
+              {sexModalData.groups.map((g, index) => {
+                const selectedCage = cages.find((c:any) => c.id === g.cageId);
+                const compCount = selectedCage?.compartments || 1;
+                return (
+                  <div key={g.id} className="border rounded-md p-2 space-y-2 bg-gray-50 dark:bg-gray-900/40">
+                    <div className="flex justify-between items-center text-xs font-semibold text-gray-700 dark:text-gray-200">
+                      <span>Group {index + 1}</span>
+                      {sexModalData.groups.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveSexGroup(g.id)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-xs">Male Count</label>
+                        <input
+                          className="w-full px-2 py-1 border rounded text-sm"
+                          type="number"
+                          min="0"
+                          value={g.maleCount}
+                          onChange={(e) =>
+                            setSexModalData((prev) => ({
+                              ...prev,
+                              groups: prev.groups.map((gg) =>
+                                gg.id === g.id ? { ...gg, maleCount: e.target.value } : gg,
+                              ),
+                            }))
+                          }
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs">Female Count</label>
+                        <input
+                          className="w-full px-2 py-1 border rounded text-sm"
+                          type="number"
+                          min="0"
+                          value={g.femaleCount}
+                          onChange={(e) =>
+                            setSexModalData((prev) => ({
+                              ...prev,
+                              groups: prev.groups.map((gg) =>
+                                gg.id === g.id ? { ...gg, femaleCount: e.target.value } : gg,
+                              ),
+                            }))
+                          }
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-xs">Cage</label>
+                        <select
+                          className="w-full px-2 py-1 border rounded text-sm"
+                          value={g.cageId}
+                          onChange={(e) =>
+                            setSexModalData((prev) => ({
+                              ...prev,
+                              groups: prev.groups.map((gg) =>
+                                gg.id === g.id ? { ...gg, cageId: e.target.value } : gg,
+                              ),
+                            }))
+                          }
+                        >
+                          <option value="">Select cage</option>
+                          {cages.map((c:any) => (
+                            <option key={c.id} value={c.id}>
+                              {c.cageId} ({c.type})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs">Compartment</label>
+                        <select
+                          className="w-full px-2 py-1 border rounded text-sm"
+                          value={g.compartment}
+                          onChange={(e) =>
+                            setSexModalData((prev) => ({
+                              ...prev,
+                              groups: prev.groups.map((gg) =>
+                                gg.id === g.id ? { ...gg, compartment: e.target.value } : gg,
+                              ),
+                            }))
+                          }
+                        >
+                          {Array.from({ length: compCount }, (_, i) => (
+                            <option key={i + 1} value={String(i + 1)}>
+                              {i + 1}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              <button
+                type="button"
+                onClick={handleAddSexGroup}
+                className="w-full px-3 py-1 border border-dashed border-gray-400 rounded text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-900/40"
+              >
+                + Add Another Group
+              </button>
+              <div className="flex gap-2 justify-end">
+                <button type="button" onClick={()=>setShowSexModal(false)} className="px-3 py-1 bg-gray-300 rounded">Cancel</button>
+                <button type="submit" className="px-3 py-1 bg-blue-600 text-white rounded">Save</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
