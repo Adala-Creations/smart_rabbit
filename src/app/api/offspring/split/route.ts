@@ -90,17 +90,35 @@ export async function POST(req: Request) {
       }
     }
 
+    // Fetch source batch with related records before archiving
+    const sourceWithRelations = await prisma.offspringBatch.findUnique({
+      where: { id: source.id },
+      include: {
+        weights: { orderBy: { measurementDate: 'desc' } },
+        healthHistory: { orderBy: { createdAt: 'desc' } },
+      },
+    });
+
+    if (!sourceWithRelations) {
+      return NextResponse.json({ error: 'Source batch not found' }, { status: 404 });
+    }
+
     const created = await prisma.$transaction(async (tx) => {
       // Mark source as archived/sexed so it no longer represents a live cage batch
+      // Keep all related records (weights, health history) on the archived batch for historical reference
       await tx.offspringBatch.update({
         where: { id: source.id },
         data: {
           status: 'ARCHIVED',
           // keep original count for history; new batches hold actual live counts
+          // All weights and health history remain on this archived batch
         },
       });
 
       const results: any[] = [];
+
+      // Get the latest weight from source to optionally copy to new batches
+      const latestWeight = sourceWithRelations.weights?.[0];
 
       for (const b of newBatches) {
         const batchId = `BTC-${String(nextNumber).padStart(3, '0')}`;
@@ -138,12 +156,24 @@ export async function POST(req: Request) {
           },
         });
 
+        // Copy the latest weight from source batch to new batch (if exists) as starting point
+        if (latestWeight) {
+          await tx.offspringWeight.create({
+            data: {
+              batchId: createdChild.id,
+              weight: latestWeight.weight,
+              measurementDate: latestWeight.measurementDate,
+              notes: `Copied from source batch ${source.batchId} during sexing`,
+            },
+          });
+        }
+
         // Start each new batch with a health history entry so audit trail remains clear
         await tx.offspringBatchHealthHistory.create({
           data: {
             batchId: createdChild.id,
             status: source.overallHealthStatus,
-            notes: 'Created via sexing/splitting from batch ' + source.batchId,
+            notes: `Created via sexing/splitting from batch ${source.batchId}. Original batch archived with ${source.count} kits.`,
           },
         });
 

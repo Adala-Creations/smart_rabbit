@@ -16,7 +16,11 @@ export async function GET(req: Request) {
     const status = url.searchParams.get('status');
     const page = parseInt(url.searchParams.get('page') || '1');
     const pageSize = parseInt(url.searchParams.get('pageSize') || '50');
-    const where = status ? { status } : undefined;
+    // Exclude ARCHIVED batches by default (they're historical records after sexing)
+    // Only include them if explicitly requested
+    const where = status 
+      ? { status } 
+      : { status: { not: 'ARCHIVED' } };
 
     const offspring = await prisma.offspringBatch.findMany({
       include: {

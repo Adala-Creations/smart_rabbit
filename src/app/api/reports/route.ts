@@ -60,6 +60,8 @@ export async function GET(request: NextRequest) {
 
     switch (type) {
       case 'rabbits':
+      case 'rabbits-inventory':
+        // Fetch adult rabbits
         const rabbits = await prisma.rabbit.findMany({
           where: dateFilter,
           include: {
@@ -72,8 +74,9 @@ export async function GET(request: NextRequest) {
             },
           },
         });
-        data = rabbits.map(r => ({
-          rabbitId: r.rabbitId,
+        const rabbitRows = rabbits.map(r => ({
+          type: 'Adult Rabbit',
+          id: r.rabbitId,
           name: r.name,
           gender: r.gender,
           breed: r.breed,
@@ -81,6 +84,7 @@ export async function GET(request: NextRequest) {
           healthStatus: r.healthStatus,
           dateOfBirth: formatDate(r.dateOfBirth),
           color: r.color,
+          count: 1,
           cage: r.cage?.cageId,
           compartment: (r as any)['compartment'],
           location: r.cage?.rabbitry?.location?.name,
@@ -88,7 +92,55 @@ export async function GET(request: NextRequest) {
           notes: r.notes,
           createdAt: formatDate(r.createdAt),
         }));
-        headers = ['rabbitId', 'name', 'gender', 'breed', 'status', 'healthStatus', 'dateOfBirth', 'color', 'cage', 'compartment', 'location', 'rabbitry', 'notes', 'createdAt'];
+
+        // Fetch offspring batches (exclude ARCHIVED)
+        const offspringBatches = await prisma.offspringBatch.findMany({
+          where: {
+            ...dateFilter,
+            status: { not: 'ARCHIVED' },
+          },
+          include: {
+            birth: {
+              include: {
+                mating: {
+                  include: {
+                    buck: true,
+                    doe: true,
+                  },
+                },
+              },
+            },
+            cage: {
+              include: {
+                rabbitry: {
+                  include: { location: true },
+                },
+              },
+            },
+          },
+        });
+        const offspringRows = offspringBatches.map(b => ({
+          type: b.status === 'SEXED' ? 'Grower Batch' : 'Kit Batch',
+          id: b.batchId,
+          name: null,
+          gender: b.maleCount && b.femaleCount ? `${b.maleCount}M/${b.femaleCount}F` : 'Unsexed',
+          breed: b.birth?.mating?.buck?.breed || b.birth?.mating?.doe?.breed || '',
+          status: b.status,
+          healthStatus: b.overallHealthStatus,
+          dateOfBirth: formatDate(b.birth?.birthDate),
+          color: null,
+          count: b.count,
+          cage: b.cage?.cageId,
+          compartment: b.compartment,
+          location: b.cage?.rabbitry?.location?.name,
+          rabbitry: b.cage?.rabbitry?.name,
+          notes: b.notes,
+          createdAt: formatDate(b.createdAt),
+        }));
+
+        // Combine rabbits and offspring
+        data = [...rabbitRows, ...offspringRows];
+        headers = ['type', 'id', 'name', 'gender', 'breed', 'status', 'healthStatus', 'dateOfBirth', 'color', 'count', 'cage', 'compartment', 'location', 'rabbitry', 'notes', 'createdAt'];
         break;
 
       case 'matings':
@@ -144,18 +196,22 @@ export async function GET(request: NextRequest) {
         break;
 
       case 'deaths':
+      case 'death-records':
+        // Fetch adult rabbit deaths
         const deaths = await prisma.death.findMany({
           where: dateFilter,
           include: {
             rabbit: true,
           },
         });
-        data = deaths.map(d => ({
+        const deathRows = deaths.map(d => ({
+          type: 'Adult Rabbit',
           deathDate: formatDate(d.deathDate),
-          rabbitId: d.rabbit.rabbitId,
-          rabbitName: d.rabbit.name,
+          id: d.rabbit.rabbitId,
+          name: d.rabbit.name,
           breed: d.rabbit.breed,
           gender: d.rabbit.gender,
+          count: 1,
           ageAtDeath: (() => {
             try {
               const dob = d.rabbit?.dateOfBirth;
@@ -178,15 +234,55 @@ export async function GET(request: NextRequest) {
           notes: d.notes,
           createdAt: formatDate(d.createdAt),
         }));
-        headers = ['deathDate', 'rabbitId', 'rabbitName', 'breed', 'gender', 'cause', 'ageAtDeath', 'notes', 'createdAt'];
-        break;
 
-      case 'offspring-deaths':
+        // Fetch offspring deaths
         const offspringDeaths = await prisma.offspringDeath.findMany({
           where: dateFilter as any,
           include: { birth: { include: { mating: { include: { buck: true, doe: true } } } } },
         });
-        data = offspringDeaths.map(od => ({
+        const offspringDeathRows = offspringDeaths.map(od => ({
+          type: 'Offspring (Kit)',
+          deathDate: formatDate(od.deathDate),
+          id: null,
+          name: null,
+          breed: od.birth?.mating?.buck?.breed || od.birth?.mating?.doe?.breed || '',
+          gender: null,
+          count: od.count,
+          ageAtDeath: (() => {
+            try {
+              const bd = od.birth?.birthDate;
+              const dd = od.deathDate;
+              if (!bd || !dd) return '';
+              const b = new Date(bd);
+              const de = new Date(dd);
+              if (isNaN(b.getTime()) || isNaN(de.getTime()) || de < b) return '';
+              let years = de.getFullYear() - b.getFullYear();
+              let months = de.getMonth() - b.getMonth();
+              let days = de.getDate() - b.getDate();
+              if (days < 0) { months -= 1; const prevMonth = new Date(de.getFullYear(), de.getMonth(), 0).getDate(); days += prevMonth; }
+              if (months < 0) { years -= 1; months += 12; }
+              if (years > 0) return `${years}y${months > 0 ? ` ${months}m` : ''}`;
+              if (months > 0) return `${months}m${days > 0 ? ` ${days}d` : ''}`;
+              return `${days}d`;
+            } catch(e) { return ''; }
+          })(),
+          cause: od.cause,
+          notes: od.notes,
+          createdAt: formatDate(od.createdAt),
+        }));
+
+        // Combine adult and offspring deaths
+        data = [...deathRows, ...offspringDeathRows];
+        headers = ['type', 'deathDate', 'id', 'name', 'breed', 'gender', 'count', 'ageAtDeath', 'cause', 'notes', 'createdAt'];
+        break;
+
+      case 'offspring-deaths':
+        // Keep for backward compatibility
+        const offspringDeathsLegacy = await prisma.offspringDeath.findMany({
+          where: dateFilter as any,
+          include: { birth: { include: { mating: { include: { buck: true, doe: true } } } } },
+        });
+        data = offspringDeathsLegacy.map(od => ({
           birthDate: formatDate(od.birth.birthDate),
           parents: od.birth.mating ? `${od.birth.mating.buck.rabbitId} × ${od.birth.mating.doe.rabbitId}` : '',
           deathDate: formatDate(od.deathDate),
@@ -251,6 +347,53 @@ export async function GET(request: NextRequest) {
           createdAt: formatDate(e.createdAt),
         }));
         headers = ['expenseDate', 'description', 'category', 'amount', 'vendor', 'notes', 'createdAt'];
+        break;
+
+      case 'finance-records':
+        // Fetch sales
+        const salesCombined = await prisma.sale.findMany({
+          where: dateFilter,
+          include: {
+            rabbit: true,
+          },
+        });
+        const salesRows = salesCombined.map(s => ({
+          type: 'Sale',
+          date: formatDate(s.saleDate),
+          description: s.description,
+          category: null,
+          amount: s.amount,
+          rabbit: s.rabbit?.rabbitId,
+          rabbitName: s.rabbit?.name,
+          buyerName: s.buyerName,
+          buyerContact: s.buyerContact,
+          vendor: null,
+          notes: s.notes,
+          createdAt: formatDate(s.createdAt),
+        }));
+
+        // Fetch expenses
+        const expensesCombined = await prisma.expense.findMany({
+          where: dateFilter,
+        });
+        const expenseRows = expensesCombined.map(e => ({
+          type: 'Expense',
+          date: formatDate(e.expenseDate),
+          description: e.description,
+          category: e.category,
+          amount: -Math.abs(e.amount), // Negative for expenses
+          rabbit: null,
+          rabbitName: null,
+          buyerName: null,
+          buyerContact: null,
+          vendor: e.vendor,
+          notes: e.notes,
+          createdAt: formatDate(e.createdAt),
+        }));
+
+        // Combine sales and expenses
+        data = [...salesRows, ...expenseRows];
+        headers = ['type', 'date', 'description', 'category', 'amount', 'rabbit', 'rabbitName', 'buyerName', 'buyerContact', 'vendor', 'notes', 'createdAt'];
         break;
 
       case 'locations':

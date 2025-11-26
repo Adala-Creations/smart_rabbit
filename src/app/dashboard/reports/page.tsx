@@ -21,7 +21,7 @@ import {
 
 export default function ReportsPage() {
   const toast = useToast();
-  const [reportType, setReportType] = useState('rabbits');
+  const [reportType, setReportType] = useState('rabbits-inventory');
   // JSON export removed: format fixed to CSV for data downloads; Word export separate
   const format = 'csv';
   const [dateFrom, setDateFrom] = useState('');
@@ -262,27 +262,135 @@ export default function ReportsPage() {
         const res = await fetchWithLoading(url); return res.ok ? res.json() : [];
       };
       switch (reportType) {
-        case 'rabbits': data = await fetchJson('/api/rabbits'); break;
+        case 'rabbits':
+        case 'rabbits-inventory':
+          // Fetch both rabbits and offspring
+          const [rabbits, offspring] = await Promise.all([
+            fetchJson('/api/rabbits'),
+            fetchJson('/api/offspring'),
+          ]);
+          const offspringBatches = Array.isArray(offspring) ? offspring : (offspring?.items || []);
+          // Combine into single array
+          data = [
+            ...(Array.isArray(rabbits) ? rabbits : []).map((r: any) => ({
+              type: 'Adult Rabbit',
+              id: r.rabbitId,
+              name: r.name,
+              gender: r.gender,
+              breed: r.breed,
+              status: r.status,
+              healthStatus: r.healthStatus,
+              dateOfBirth: r.dateOfBirth,
+              color: r.color,
+              count: 1,
+              cage: r.cage?.cageId,
+              compartment: r.compartment,
+              location: r.cage?.rabbitry?.location?.name,
+              rabbitry: r.cage?.rabbitry?.name,
+              notes: r.notes,
+            })),
+            ...offspringBatches.filter((b: any) => b.status !== 'ARCHIVED').map((b: any) => ({
+              type: b.status === 'SEXED' ? 'Grower Batch' : 'Kit Batch',
+              id: b.batchId,
+              name: null,
+              gender: b.maleCount && b.femaleCount ? `${b.maleCount}M/${b.femaleCount}F` : 'Unsexed',
+              breed: b.birth?.mating?.buck?.breed || b.birth?.mating?.doe?.breed || '',
+              status: b.status,
+              healthStatus: b.overallHealthStatus,
+              dateOfBirth: b.birth?.birthDate,
+              color: null,
+              count: b.count,
+              cage: b.cage?.cageId,
+              compartment: b.compartment,
+              location: b.cage?.rabbitry?.location?.name,
+              rabbitry: b.cage?.rabbitry?.name,
+              notes: b.notes,
+            })),
+          ];
+          break;
         case 'matings': data = await fetchJson('/api/matings'); break;
         case 'births': data = await fetchJson('/api/births'); break;
-        case 'deaths': data = await fetchJson('/api/deaths'); break;
-        case 'sales': data = await fetchJson('/api/sales'); break;
-        case 'expenses': data = await fetchJson('/api/expenses'); break;
+        case 'deaths':
+        case 'death-records':
+          // Fetch both adult deaths and offspring deaths
+          const [deaths, offspringDeaths] = await Promise.all([
+            fetchJson('/api/deaths'),
+            fetchJson('/api/offspring-deaths'),
+          ]);
+          data = [
+            ...(Array.isArray(deaths) ? deaths : []).map((d: any) => ({
+              type: 'Adult Rabbit',
+              deathDate: d.deathDate,
+              id: d.rabbit?.rabbitId || d.rabbitId,
+              name: d.rabbit?.name,
+              breed: d.rabbit?.breed,
+              gender: d.rabbit?.gender,
+              count: 1,
+              cause: d.cause,
+              notes: d.notes,
+            })),
+            ...(Array.isArray(offspringDeaths) ? offspringDeaths : []).map((od: any) => ({
+              type: 'Offspring (Kit)',
+              deathDate: od.deathDate,
+              id: null,
+              name: null,
+              breed: od.birth?.mating?.buck?.breed || od.birth?.mating?.doe?.breed || '',
+              gender: null,
+              count: od.count,
+              cause: od.cause,
+              notes: od.notes,
+            })),
+          ];
+          break;
+        case 'finance-records':
+          // Fetch both sales and expenses
+          const [sales, expenses] = await Promise.all([
+            fetchJson('/api/sales'),
+            fetchJson('/api/expenses'),
+          ]);
+          data = [
+            ...(Array.isArray(sales) ? sales : []).map((s: any) => ({
+              type: 'Sale',
+              date: s.saleDate,
+              description: s.description,
+              category: null,
+              amount: s.amount,
+              rabbit: s.rabbit?.rabbitId || s.rabbitId,
+              buyerName: s.buyerName,
+              buyerContact: s.buyerContact,
+              vendor: null,
+              notes: s.notes,
+            })),
+            ...(Array.isArray(expenses) ? expenses : []).map((e: any) => ({
+              type: 'Expense',
+              date: e.expenseDate,
+              description: e.description,
+              category: e.category,
+              amount: -Math.abs(e.amount), // Negative for expenses
+              rabbit: null,
+              buyerName: null,
+              buyerContact: null,
+              vendor: e.vendor,
+              notes: e.notes,
+            })),
+          ];
+          break;
         case 'locations': data = await fetchJson('/api/locations'); break;
         case 'cages': data = await fetchJson('/api/cages'); break;
         case 'workers': data = await fetchJson('/api/workers'); break;
         case 'health':
           // Fetch offspring batches including health history for Word export
-          const offspring = await fetchJson('/api/offspring');
+          const offspringHealth = await fetchJson('/api/offspring');
           // Flatten health history entries
-          data = Array.isArray(offspring) ? offspring.flatMap((b:any) =>
+          const offspringBatchesHealth = Array.isArray(offspringHealth) ? offspringHealth : (offspringHealth?.items || []);
+          data = offspringBatchesHealth.flatMap((b:any) =>
             (b.healthHistory || []).map((h:any) => ({
               batchId: b.batchId,
               status: h.status,
               notes: h.notes,
               createdAt: h.createdAt,
             }))
-          ) : [];
+          );
           break;
         case 'complete':
           data = {
@@ -301,7 +409,12 @@ export default function ReportsPage() {
 
       const today = new Date();
       const dateStr = today.toISOString().split('T')[0];
-      const title = `${reportType.charAt(0).toUpperCase()+reportType.slice(1)} Report - ${dateStr}`;
+      const reportTitleMap: Record<string, string> = {
+        'rabbits-inventory': 'Rabbits Inventory Report',
+        'death-records': 'Death Records Report',
+        'finance-records': 'Finance Records Report',
+      };
+      const title = reportTitleMap[reportType] || `${reportType.charAt(0).toUpperCase()+reportType.slice(1).replace(/-/g, ' ')} Report - ${dateStr}`;
       const docSections: any[] = [];
       const addPara = (text: string, opts: any = {}) => docSections.push(new Paragraph({ children:[ new TextRun({ text }) ], ...opts }));
 
@@ -334,10 +447,23 @@ export default function ReportsPage() {
       } else if (Array.isArray(data)) {
         addPara(`Record count: ${data.length}`);
         addPara('');
+        // For combined reports, show summary by type
+        if (reportType === 'rabbits-inventory' || reportType === 'death-records' || reportType === 'finance-records') {
+          const typeCounts: Record<string, number> = {};
+          data.forEach((item: any) => {
+            const type = item.type || 'Unknown';
+            typeCounts[type] = (typeCounts[type] || 0) + 1;
+          });
+          addPara('Summary by type:');
+          Object.entries(typeCounts).forEach(([type, count]) => {
+            addPara(`  ${type}: ${count} records`);
+          });
+          addPara('');
+        }
         data.slice(0,500).forEach((item:any, idx:number) => {
           const summary = Object.entries(item)
-            .filter(([k,v]) => ['id','rabbitId','batchId','matingDate','birthDate','deathDate','saleDate','expenseDate','gender','breed','status','amount','count','cause','category'].includes(k))
-            .map(([k,v]) => `${k}: ${typeof v === 'string' ? v : v instanceof Date ? v.toISOString() : v}`)
+            .filter(([k,v]) => ['type','id','rabbitId','batchId','name','matingDate','birthDate','deathDate','date','saleDate','expenseDate','gender','breed','status','amount','count','cause','category','description'].includes(k))
+            .map(([k,v]) => `${k}: ${v === null || v === undefined ? '-' : typeof v === 'string' ? v : v instanceof Date ? v.toISOString() : v}`)
             .join(' | ');
           addPara(`${idx+1}. ${summary}`);
         });
@@ -496,13 +622,11 @@ export default function ReportsPage() {
               onChange={(e) => setReportType(e.target.value)}
               className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             >
-              <option value="rabbits">Rabbits Inventory</option>
+              <option value="rabbits-inventory">Rabbits Inventory (Adults + Offspring)</option>
               <option value="matings">Mating Records</option>
               <option value="births">Birth Records</option>
-              <option value="deaths">Death Records</option>
-              <option value="offspring-deaths">Offspring Death Records</option>
-              <option value="sales">Sales Records</option>
-              <option value="expenses">Expense Records</option>
+              <option value="death-records">Death Records (Adults + Offspring)</option>
+              <option value="finance-records">Finance Records (Sales + Expenses)</option>
               <option value="locations">Locations</option>
               <option value="cages">Cages</option>
               <option value="workers">Workers</option>
@@ -572,7 +696,7 @@ export default function ReportsPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mt-4 sm:mt-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Available Reports</h3>
-          <p className="text-3xl font-bold text-blue-600">10</p>
+          <p className="text-3xl font-bold text-blue-600">8</p>
           <p className="text-sm text-gray-500 dark:text-gray-400">Different report types</p>
         </div>
 
