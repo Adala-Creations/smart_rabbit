@@ -83,7 +83,7 @@ export default function DashboardLayout({
             </div>
 
             {/* Desktop User Menu */}
-            <div className="hidden sm:flex items-center space-x-3">
+            <div className="hidden lg:flex items-center space-x-3">
               <span className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 truncate max-w-[150px]">
                 {session.user?.name || session.user?.email}
               </span>
@@ -96,7 +96,7 @@ export default function DashboardLayout({
             </div>
 
             {/* Mobile Menu Button */}
-            <div className="flex items-center sm:hidden">
+            <div className="flex items-center lg:hidden">
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 className="inline-flex items-center justify-center p-2 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none"
@@ -115,7 +115,7 @@ export default function DashboardLayout({
 
         {/* Mobile Dropdown Menu */}
         {mobileMenuOpen && (
-          <div className="sm:hidden border-t border-gray-200 dark:border-gray-700">
+          <div className="lg:hidden border-t border-gray-200 dark:border-gray-700">
             <div className="px-2 pt-2 pb-3 space-y-1">
               {fullNavLinks.map((link) => (
                 <Link
