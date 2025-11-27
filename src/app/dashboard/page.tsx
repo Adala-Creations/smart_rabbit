@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import useFetchWithLoading from '@/hooks/useFetchWithLoading';
 import Link from 'next/link';
+import { useActiveLocation } from '@/contexts/ActiveLocationContext';
 
 interface Stats {
   totalRabbits: number;
@@ -22,6 +23,7 @@ interface Stats {
 }
 
 export default function DashboardPage() {
+  const { activeLocation } = useActiveLocation();
   const [stats, setStats] = useState<Stats>({
     totalRabbits: 0,
     pendingMatings: 0,
@@ -168,12 +170,32 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      <div className="px-2 sm:px-4 md:px-0">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
-        <p className="mt-1 sm:mt-2 text-sm sm:text-base text-gray-600 dark:text-gray-400">
-          Overview of your rabbit farm
-        </p>
+    <div className="container mx-auto px-4 py-8">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
+        <h1 className="text-2xl sm:text-3xl font-bold">Dashboard</h1>
+        {activeLocation ? (
+          <div className="flex flex-wrap items-center gap-2 bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 px-3 sm:px-4 py-2 rounded-full text-sm font-medium w-fit max-w-full">
+            <span className="hidden sm:inline mr-1">📍</span>
+            <span className="truncate max-w-[180px] sm:max-w-none">
+              <span className="hidden sm:inline">Active: </span>
+              <span className="font-semibold">{activeLocation.name}</span>
+            </span>
+            <Link 
+              href="/dashboard/locations" 
+              className="whitespace-nowrap text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 text-sm"
+              title="Change Location"
+            >
+              (Change)
+            </Link>
+          </div>
+        ) : (
+          <Link 
+            href="/dashboard/locations" 
+            className="inline-flex items-center justify-center w-full sm:w-auto px-3 sm:px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            Select Active Location
+          </Link>
+        )}
       </div>
 
       {/* Stats Grid - Fully Responsive */}
@@ -325,7 +347,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Notifications - Mobile Optimized */}
-      <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4 sm:p-6">
+      <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4 mt-4 sm:p-6">
         <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-3 sm:mb-4 flex items-center gap-2">
           Notifications 
           {notifications.length > 0 && <span className="text-xs sm:text-sm font-normal text-gray-500 dark:text-gray-400">({notifications.length})</span>}
@@ -347,7 +369,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Financial Overview - Mobile Optimized */}
-      <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4 sm:p-6">
+      <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4 mt-4 sm:p-6">
         <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-3 sm:mb-4">
           Financial Overview
         </h2>
@@ -382,7 +404,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Quick Actions - Mobile Optimized Grid */}
-      <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4 sm:p-6">
+      <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4 mt-4 sm:p-6">
         <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-3 sm:mb-4">
           Quick Actions
         </h2>

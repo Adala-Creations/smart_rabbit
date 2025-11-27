@@ -4,6 +4,7 @@ import { useSession, signOut } from 'next-auth/react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { ActiveLocationProvider } from '@/contexts/ActiveLocationContext';
 
 export default function DashboardLayout({
   children,
@@ -49,7 +50,8 @@ export default function DashboardLayout({
   const desktopNavLinks = fullNavLinks.filter(l => ['Dashboard','Locations','Workers','Reports','Profile'].includes(l.label));
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <ActiveLocationProvider>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <nav className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
@@ -154,6 +156,7 @@ export default function DashboardLayout({
       <main className="max-w-7xl mx-auto py-4 px-4 sm:py-6 sm:px-6 lg:px-8">
         {children}
       </main>
-    </div>
+      </div>
+    </ActiveLocationProvider>
   );
 }
