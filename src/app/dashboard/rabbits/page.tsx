@@ -72,6 +72,13 @@ export default function RabbitsPage() {
   });
 
   const fetchWithLoading = useFetchWithLoading();
+  const getAvailableCount = (batch: any) =>
+    Math.max(0, batch?.availableCount ?? batch?.count ?? 0);
+  const getDisplayCount = (batch: any) => {
+    const available = getAvailableCount(batch);
+    const sexTotal = (batch?.maleCount ?? 0) + (batch?.femaleCount ?? 0);
+    return Math.max(available, sexTotal, batch?.count ?? 0);
+  };
   useEffect(() => {
     fetchRabbits();
     fetchCages();
@@ -313,16 +320,21 @@ export default function RabbitsPage() {
     e.preventDefault();
     
     try {
-      const url = editingOffspringId ? '/api/offspring' : '/api/offspring';
+      const url = '/api/offspring';
       const method = editingOffspringId ? 'PUT' : 'POST';
-      const body = editingOffspringId 
-        ? JSON.stringify({ id: editingOffspringId, ...offspringFormData })
-        : JSON.stringify(offspringFormData);
+      let payload: any;
+      if (editingOffspringId) {
+        // Do not update count when editing to keep DB anchor intact
+        const { count, ...rest } = offspringFormData as any;
+        payload = { id: editingOffspringId, ...rest };
+      } else {
+        payload = offspringFormData;
+      }
 
       const res = await fetchWithLoading(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body,
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
@@ -345,7 +357,8 @@ export default function RabbitsPage() {
     setEditingOffspringId(batch.id);
     setOffspringFormData({
       birthId: batch.birthId,
-      count: String(batch.count),
+      // Use current alive kits for editing view
+      count: String(getAvailableCount(batch)),
       weight: '',
       notes: batch.notes || '',
       cageId: batch.cageId || '',
@@ -366,15 +379,16 @@ export default function RabbitsPage() {
     }
 
     // Initialise with a single group defaulting to "all as females" to keep old behaviour simple.
+    const available = getAvailableCount(batch);
     setSexModalData({
       id: batch.id,
       batchId: batch.batchId,
-      count: batch.count,
+      count: available,
       groups: [
         {
           id: `g-${Date.now()}-0`,
           maleCount: '',
-          femaleCount: String(batch.count),
+          femaleCount: String(available),
           cageId: batch.cageId || batch.cage?.id || '',
           compartment: String(batch.compartment || '1'),
         },
@@ -514,7 +528,7 @@ export default function RabbitsPage() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Rabbits</h1>
           <p className="mt-2 text-gray-600 dark:text-gray-400">
-            Manage your rabbit inventory ({rabbits.length} parents, {offspring.reduce((s,b)=>s+b.count,0)} offspring)
+            Manage your rabbit inventory ({rabbits.length} parents, {offspring.reduce((s,b)=> s + (offspringView === 'growers' ? getDisplayCount(b) : getAvailableCount(b)), 0)} offspring)
           </p>
         </div>
         <div className="flex gap-2">
@@ -562,7 +576,7 @@ export default function RabbitsPage() {
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400'
             }`}
           >
-            Offspring ({offspring.length} batches, {offspring.reduce((s,b)=>s+b.count,0)} kits)
+            Offspring ({offspring.length} batches, {offspring.reduce((s,b)=> s + (offspringView === 'growers' ? getDisplayCount(b) : getAvailableCount(b)), 0)} kits)
           </button>
         </nav>
       </div>
@@ -580,6 +594,7 @@ export default function RabbitsPage() {
               </label>
               <select
                 required
+                disabled={!!editingOffspringId}
                 value={offspringFormData.birthId}
                 onChange={(e) => setOffspringFormData({ ...offspringFormData, birthId: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
@@ -638,6 +653,7 @@ export default function RabbitsPage() {
                 required
                 type="number"
                 min="1"
+                disabled={!!editingOffspringId}
                 value={offspringFormData.count}
                 onChange={(e) => setOffspringFormData({ ...offspringFormData, count: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
@@ -1255,7 +1271,7 @@ export default function RabbitsPage() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{batch.batchId}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{birthDate.toLocaleDateString()}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{doe} × {buck}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{batch.count}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{offspringView === 'growers' ? getDisplayCount(batch) : getAvailableCount(batch)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{ageDays}d ({ageWeeks}w)</td>
                   {/* <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{latestWeight ? `${latestWeight} kg` : '-'}</td> */}
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{batch.cage?.cageId ?? '-'}</td>
@@ -1370,7 +1386,7 @@ export default function RabbitsPage() {
               </div>
               <div className="grid grid-cols-1 gap-2">
                 <div className="text-sm">Batch ID: {viewingOffspring.batchId}</div>
-                <div className="text-sm">Count: {viewingOffspring.count}</div>
+                <div className="text-sm">Count: {getAvailableCount(viewingOffspring)}</div>
                 <div className="text-sm">Birth Date: {new Date(viewingOffspring.birth.birthDate).toLocaleDateString()}</div>
                 <div className="text-sm">Age: {(() => { const d = Math.floor((Date.now() - new Date(viewingOffspring.birth.birthDate).getTime())/(1000*60*60*24)); const w = Math.floor(d/7); return `${d} days (${w} weeks)`; })()}</div>
                 <div className="text-sm">Cage: {viewingOffspring.cage?.cageId ?? '-'}</div>

@@ -52,10 +52,33 @@ export async function POST(req: Request) {
       );
     }
 
+    // Compute current alive kits for this source batch by subtracting recorded offspring deaths at the birth
+    // Deaths are allocated to the oldest batches first (by createdAt), as in the listing endpoint
+    const batchesSameBirth = await prisma.offspringBatch.findMany({
+      where: { birthId: source.birthId },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, count: true, createdAt: true },
+    });
+    const deathsAgg = await prisma.offspringDeath.aggregate({
+      where: { birthId: source.birthId },
+      _sum: { count: true },
+    });
+    let remainingDeaths = (deathsAgg._sum.count ?? 0) as number;
+    const availableByBatch: Record<string, number> = {};
+    for (const b of batchesSameBirth) {
+      const deathsForB = Math.min(remainingDeaths, b.count);
+      availableByBatch[b.id] = Math.max(0, b.count - deathsForB);
+      remainingDeaths -= deathsForB;
+    }
+    const availableForSource = availableByBatch[source.id] ?? 0;
+
     const totalRequested = newBatches.reduce((sum, b) => sum + Number(b.count || 0), 0);
-    if (totalRequested !== source.count) {
+    if (availableForSource <= 0) {
+      return NextResponse.json({ error: 'No live kits available in this batch to sex.' }, { status: 400 });
+    }
+    if (totalRequested !== availableForSource) {
       return NextResponse.json(
-        { error: `Sum of new batch counts (${totalRequested}) must equal source count (${source.count})` },
+        { error: `Sum of new batch counts (${totalRequested}) must equal current alive kits in source batch (${availableForSource}).` },
         { status: 400 },
       );
     }
@@ -173,7 +196,7 @@ export async function POST(req: Request) {
           data: {
             batchId: createdChild.id,
             status: source.overallHealthStatus,
-            notes: `Created via sexing/splitting from batch ${source.batchId}. Original batch archived with ${source.count} kits.`,
+            notes: `Created via sexing/splitting from batch ${source.batchId}. Original recorded count ${source.count}; current alive ${availableForSource}.`,
           },
         });
 

@@ -45,12 +45,20 @@ export default function DashboardPage() {
   const [offspring, setOffspring] = useState<any[]>([]);
 
   const fetchWithLoading = useFetchWithLoading();
+  const getAvailableCount = (batch: any) =>
+    Math.max(0, batch?.availableCount ?? batch?.count ?? 0);
+  const getDisplayCount = (batch: any) => {
+    const available = getAvailableCount(batch);
+    const sexTotal = (batch?.maleCount ?? 0) + (batch?.femaleCount ?? 0);
+    return Math.max(available, sexTotal, batch?.count ?? 0);
+  };
   useEffect(() => {
     async function fetchStats() {
       try {
         // Fetch rabbits
         const rabbitsRes = await fetchWithLoading('/api/rabbits');
         const rabbits = await rabbitsRes.json();
+        const parentsAlive = Array.isArray(rabbits) ? rabbits.filter((r:any)=> r.status === 'ACTIVE').length : 0;
 
         // Fetch offspring batches (excludes ARCHIVED by default)
         const offspringRes = await fetchWithLoading('/api/offspring');
@@ -94,7 +102,13 @@ export default function DashboardPage() {
         const totalDeaths = deaths.length + offspringDeathsTotal;
 
         // Only count non-ARCHIVED batches (ARCHIVED batches are historical after sexing)
-        const totalOffspringCount = activeOffspringBatches.reduce((sum: number, b: any) => sum + (b.count || 0), 0);
+        const unsexedOffspringCount = activeOffspringBatches
+          .filter((b:any)=> b.status === 'ACTIVE')
+          .reduce((sum: number, b: any) => sum + getAvailableCount(b), 0);
+        const sexedOffspringCount = activeOffspringBatches
+          .filter((b:any)=> b.status === 'SEXED')
+          .reduce((sum: number, b: any) => sum + getDisplayCount(b), 0);
+        const totalOffspringCount = unsexedOffspringCount + sexedOffspringCount;
         // Adult health counts (exclude deceased)
         const adultHealthy = rabbits.filter((r:any)=> r.status !== 'DECEASED' && r.healthStatus === 'HEALTHY').length;
         const adultSick = rabbits.filter((r:any)=> r.status !== 'DECEASED' && r.healthStatus === 'SICK').length;
@@ -104,7 +118,7 @@ export default function DashboardPage() {
         const offspringSick = activeOffspringBatches.filter((b:any)=> b.overallHealthStatus === 'SICK').length;
         const offspringInjured = activeOffspringBatches.filter((b:any)=> b.overallHealthStatus === 'INJURED').length;
         setStats({
-          totalRabbits: rabbits.length + totalOffspringCount,
+          totalRabbits: parentsAlive + totalOffspringCount,
           pendingMatings,
           recentBirths,
           totalSales,
@@ -145,13 +159,17 @@ export default function DashboardPage() {
           const birthDate = new Date(batch.birth.birthDate);
           const days = (Date.now() - birthDate.getTime()) / (1000*60*60*24);
           if (batch.status === 'ACTIVE' && days >= 42) {
-            notes.push(`🔍 Batch ${batch.batchId} ready for sexing (${batch.count} kits, ${Math.floor(days)} days old)`);
+            notes.push(
+              `🔍 Batch ${batch.batchId} ready for sexing (${getAvailableCount(batch)} kits, ${Math.floor(
+                days,
+              )} days old)`,
+            );
           }
           if (batch.overallHealthStatus === 'SICK') {
-            notes.push(`⚠ Batch ${batch.batchId} marked sick (${batch.count} kits)`);
+            notes.push(`⚠ Batch ${batch.batchId} marked sick (${getAvailableCount(batch)} kits)`);
           }
           if (batch.overallHealthStatus === 'INJURED') {
-            notes.push(`🩹 Batch ${batch.batchId} has injury (${batch.count} kits)`);
+            notes.push(`🩹 Batch ${batch.batchId} has injury (${getAvailableCount(batch)} kits)`);
           }
         });
         setNotifications(notes);

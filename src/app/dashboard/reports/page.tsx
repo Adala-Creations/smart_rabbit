@@ -269,7 +269,9 @@ export default function ReportsPage() {
             fetchJson('/api/rabbits'),
             fetchJson('/api/offspring'),
           ]);
-          const offspringBatches = Array.isArray(offspring) ? offspring : (offspring?.items || []);
+          const offspringBatches = Array.isArray(offspring)
+            ? offspring
+            : (offspring?.items || []);
           // Combine into single array
           data = [
             ...(Array.isArray(rabbits) ? rabbits : []).map((r: any) => ({
@@ -289,23 +291,29 @@ export default function ReportsPage() {
               rabbitry: r.cage?.rabbitry?.name,
               notes: r.notes,
             })),
-            ...offspringBatches.filter((b: any) => b.status !== 'ARCHIVED').map((b: any) => ({
-              type: b.status === 'SEXED' ? 'Grower Batch' : 'Kit Batch',
-              id: b.batchId,
-              name: null,
-              gender: b.maleCount && b.femaleCount ? `${b.maleCount}M/${b.femaleCount}F` : 'Unsexed',
-              breed: b.birth?.mating?.buck?.breed || b.birth?.mating?.doe?.breed || '',
-              status: b.status,
-              healthStatus: b.overallHealthStatus,
-              dateOfBirth: b.birth?.birthDate,
-              color: null,
-              count: b.count,
-              cage: b.cage?.cageId,
-              compartment: b.compartment,
-              location: b.cage?.rabbitry?.location?.name,
-              rabbitry: b.cage?.rabbitry?.name,
-              notes: b.notes,
-            })),
+            ...offspringBatches
+              .filter((b: any) => b.status !== 'ARCHIVED')
+              .map((b: any) => ({
+                type: b.status === 'SEXED' ? 'Grower Batch' : 'Kit Batch',
+                id: b.batchId,
+                name: null,
+                gender:
+                  b.maleCount && b.femaleCount
+                    ? `${b.maleCount}M/${b.femaleCount}F`
+                    : 'Unsexed',
+                breed:
+                  b.birth?.mating?.buck?.breed || b.birth?.mating?.doe?.breed || '',
+                status: b.status,
+                healthStatus: b.overallHealthStatus,
+                dateOfBirth: b.birth?.birthDate,
+                color: null,
+                count: b.availableCount ?? b.count,
+                cage: b.cage?.cageId,
+                compartment: b.compartment,
+                location: b.cage?.rabbitry?.location?.name,
+                rabbitry: b.cage?.rabbitry?.name,
+                notes: b.notes,
+              })),
           ];
           break;
         case 'matings': data = await fetchJson('/api/matings'); break;

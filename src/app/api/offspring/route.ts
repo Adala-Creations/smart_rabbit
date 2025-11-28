@@ -32,20 +32,70 @@ export async function GET(req: Request) {
                 doe: { include: { cage: true } },
               },
             },
+            offspringDeaths: true,
           },
         },
         weights: { orderBy: { measurementDate: 'desc' } },
         healthHistory: { orderBy: { createdAt: 'desc' } },
         cage: true,
       },
-        where,
-        orderBy: { createdAt: 'desc' },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    });
+
+    // Adjust live counts by subtracting recorded offspring deaths per birth (oldest batches lose kits first)
+    const batchesByBirth: Record<string, any[]> = {};
+    offspring.forEach((batch) => {
+      const birthId = batch.birthId;
+      if (!batchesByBirth[birthId]) {
+        (batchesByBirth as any)[birthId] = [];
+      }
+      (batchesByBirth as any)[birthId].push(batch);
+    });
+    Object.values(batchesByBirth).forEach((list: any[]) =>
+      list.sort(
+        (a, b) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      ),
+    );
+
+    const adjustedCountByBatch: Record<string, number> = {};
+    Object.entries(batchesByBirth).forEach(([birthId, list]: [string, any[]]) => {
+      const totalDeaths =
+        list[0]?.birth?.offspringDeaths?.reduce(
+          (sum: number, od: any) => sum + (od.count || 0),
+          0,
+        ) || 0;
+      let remaining = totalDeaths;
+
+      list.forEach((batch) => {
+        if (remaining <= 0) {
+          adjustedCountByBatch[batch.id] = batch.count;
+          return;
+        }
+        const deathsForBatch = Math.min(remaining, batch.count);
+        adjustedCountByBatch[batch.id] = batch.count - deathsForBatch;
+        remaining -= deathsForBatch;
+      });
+    });
+
+    const decoratedOffspring = offspring.map((batch) => {
+      const availableCount =
+        adjustedCountByBatch[batch.id] !== undefined
+          ? Math.max(0, adjustedCountByBatch[batch.id])
+          : batch.count;
+      return {
+        ...batch,
+        originalCount: batch.count,
+        availableCount,
+        deceasedKits: Math.max(0, batch.count - availableCount),
+      };
     });
 
     const total = await prisma.offspringBatch.count({ where });
-    return NextResponse.json({ items: offspring, total, page, pageSize });
+    return NextResponse.json({ items: decoratedOffspring, total, page, pageSize });
   } catch (error) {
     console.error('Error fetching offspring:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

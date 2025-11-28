@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import useFetchWithLoading from '@/hooks/useFetchWithLoading';
 import { useToast } from '@/components/ToastProvider';
 
@@ -17,6 +17,8 @@ export default function DeathsPage() {
   const [viewingOffspringDeath, setViewingOffspringDeath] = useState<any | null>(null);
   const toast = useToast();
   const fetchWithLoading = useFetchWithLoading();
+  const parentFormRef = useRef<HTMLDivElement | null>(null);
+  const offspringFormRef = useRef<HTMLDivElement | null>(null);
   const [formData, setFormData] = useState({
     rabbitId: '',
     deathDate: new Date().toISOString().split('T')[0],
@@ -34,6 +36,18 @@ export default function DeathsPage() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    if (showForm && parentFormRef.current) {
+      parentFormRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [showForm]);
+
+  useEffect(() => {
+    if (showOffspringForm && offspringFormRef.current) {
+      offspringFormRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [showOffspringForm]);
 
   const formatAgeFromDates = (dob: string | null | undefined, deathDate: string | null | undefined) => {
     if (!dob || !deathDate) return '-';
@@ -266,7 +280,7 @@ export default function DeathsPage() {
       </div>
 
       {showForm && (
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+        <div ref={parentFormRef} className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
           <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">
             {editingId ? 'Edit Death Record' : 'Record New Death'}
           </h2>
@@ -354,7 +368,7 @@ export default function DeathsPage() {
       )}
 
       {showOffspringForm && (
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+        <div ref={offspringFormRef} className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
           <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">
             {editingOffspringId ? 'Edit Offspring Death Record' : 'Record Offspring Death'}
           </h2>
