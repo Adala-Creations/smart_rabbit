@@ -84,7 +84,7 @@ If you see "Can't reach database server":
 
 If port 3000 is busy:
 ```bash
-npm run dev -- -p 3001
+npm run dev -- -p 3005
 ```
 
 ### Authentication Issues
