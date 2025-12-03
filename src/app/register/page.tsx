@@ -11,11 +11,14 @@ export default function RegisterPage() {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    key: '',
     password: '',
     confirmPassword: '',
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const fetchWithLoading = useFetchWithLoading();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,9 +34,14 @@ export default function RegisterPage() {
       return;
     }
 
+    // Basic client-side presence check for UX; server enforces actual validation via env
+    if (!formData.key.trim()) {
+      setError('Registration key is required');
+      return;
+    }
+
     setLoading(true);
 
-    const fetchWithLoading = useFetchWithLoading();
     try {
       const res = await fetchWithLoading('/api/auth/register', {
         method: 'POST',
@@ -42,6 +50,7 @@ export default function RegisterPage() {
           name: formData.name,
           email: formData.email,
           password: formData.password,
+          key: formData.key,
         }),
       });
 
@@ -122,6 +131,21 @@ export default function RegisterPage() {
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
               placeholder="john@example.com"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="key" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Key
+            </label>
+            <input
+              id="key"
+              type="password"
+              required
+              value={formData.key}
+              onChange={(e) => setFormData({ ...formData, key: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              placeholder="Enter registration key"
             />
           </div>
 

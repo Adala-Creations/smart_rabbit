@@ -4,12 +4,28 @@ import { prisma } from '@/lib/prisma';
 
 export async function POST(req: Request) {
   try {
-    const { name, email, password } = await req.json();
+    const { name, email, password, key } = await req.json();
 
-    if (!email || !password) {
+    if (!email || !password || !key) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
+      );
+    }
+
+    // Validate registration key using environment variable
+    const expectedKey = process.env.REGISTRATION_KEY;
+    if (!expectedKey) {
+      console.error('REGISTRATION_KEY env var is not set');
+      return NextResponse.json(
+        { error: 'Registration is not available' },
+        { status: 500 }
+      );
+    }
+    if (key !== expectedKey) {
+      return NextResponse.json(
+        { error: 'Invalid registration key' },
+        { status: 403 }
       );
     }
 
