@@ -3,9 +3,11 @@
 import { useEffect, useState } from 'react';
 import useFetchWithLoading from '@/hooks/useFetchWithLoading';
 import { useToast } from '@/components/ToastProvider';
+import { useDashboardRefresh } from '@/contexts/DashboardRefreshContext';
 
 export default function BreedingPage() {
   const toast = useToast();
+  const { refreshDashboard } = useDashboardRefresh();
   const [matings, setMatings] = useState<any[]>([]);
   const [births, setBirths] = useState<any[]>([]);
   const [rabbits, setRabbits] = useState<any[]>([]);
@@ -75,6 +77,7 @@ export default function BreedingPage() {
           notes: '',
         });
         fetchData();
+        refreshDashboard(); // Refresh dashboard notifications
       }
     } catch (error) {
       console.error('Error recording mating:', error);

@@ -5,6 +5,7 @@ import useFetchWithLoading from '@/hooks/useFetchWithLoading';
 import { useToast } from '@/components/ToastProvider';
 import { useConfirm } from '@/components/ConfirmProvider';
 import Link from 'next/link';
+import { useDashboardRefresh } from '@/contexts/DashboardRefreshContext';
 
 interface Rabbit {
   id: string;
@@ -24,6 +25,7 @@ interface Rabbit {
 
 export default function RabbitsPage() {
   const toast = useToast();
+  const { refreshDashboard } = useDashboardRefresh();
   const [rabbits, setRabbits] = useState<Rabbit[]>([]);
   const [offspring, setOffspring] = useState<any[]>([]);
   const [offspringView, setOffspringView] = useState<'kits'|'growers'>('kits');
@@ -342,6 +344,7 @@ export default function RabbitsPage() {
         setEditingOffspringId(null);
         setOffspringFormData({ birthId: '', count: '', weight: '', notes: '', cageId: '', compartment: '1' });
         fetchOffspring();
+        refreshDashboard(); // Refresh dashboard notifications
         toast.pushToast({ message: editingOffspringId ? 'Offspring batch updated!' : 'Offspring batch added!', type: 'success' });
       } else {
         const data = await res.json();
@@ -444,6 +447,7 @@ export default function RabbitsPage() {
         setShowSexModal(false);
         setSexModalData({ id: '', batchId: '', count: 0, groups: [] });
         fetchOffspring(offspringPage, offspringPageSize);
+        refreshDashboard(); // Refresh dashboard notifications
         toast.pushToast({ message: 'Offspring batch sexed into new groups.', type: 'success' });
       } else {
         const data = await res.json();

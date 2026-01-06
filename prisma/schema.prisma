@@ -194,10 +194,6 @@ model OffspringBatch {
   cage                Cage?                         @relation(fields: [cageId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cage")
   healthHistory       OffspringBatchHealthHistory[]
   weights             OffspringWeight[]
-  /// When this batch is a source of sexed/split batches, the relationship is represented
-  /// via the `sourceBatchId` field on the child batches. This is mainly for logical grouping;
-  /// we don't enforce a Prisma relation to avoid breaking existing data.
-  // sexedBatches        OffspringBatch[]             @relation("OffspringBatchSexedChildren")
 }
 
 model OffspringBatchHealthHistory {
@@ -276,6 +272,45 @@ model Expense {
   expenseDate DateTime
   vendor      String?
   notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Debtor {
+  id           String   @id @default(cuid())
+  name         String
+  contact      String?
+  amountOwed   Float
+  description  String
+  dueDate      DateTime?
+  status       String   @default("PENDING") // PENDING, PAID, OVERDUE
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Creditor {
+  id           String   @id @default(cuid())
+  name         String
+  contact      String?
+  amountOwed   Float
+  description  String
+  dueDate      DateTime?
+  status       String   @default("PENDING") // PENDING, PAID, OVERDUE
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  type        String   // MATING, SEXING, BIRTH, DEATH, etc.
+  title       String
+  message     String
+  priority    String   @default("NORMAL") // LOW, NORMAL, HIGH, URGENT
+  read        Boolean  @default(false)
+  userId      String?  // null means visible to all users
+  relatedId   String?  // ID of related entity (mating, batch, etc.)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }

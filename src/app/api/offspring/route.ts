@@ -272,6 +272,19 @@ export async function PUT(req: Request) {
       },
     });
 
+    // Create notification if batch was just sexed
+    if (status === 'SEXED' && existing.status !== 'SEXED') {
+      await prisma.notification.create({
+        data: {
+          type: 'SEXING',
+          title: 'Offspring Batch Sexed',
+          message: `Batch ${batch.batchId} has been sexed: ${batch.maleCount || 0} males, ${batch.femaleCount || 0} females`,
+          priority: 'NORMAL',
+          relatedId: batch.id,
+        },
+      });
+    }
+
     if (overallHealthStatus && existing.overallHealthStatus !== overallHealthStatus) {
       await prisma.offspringBatchHealthHistory.create({
         data: {

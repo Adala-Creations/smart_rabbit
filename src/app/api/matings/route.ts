@@ -76,6 +76,17 @@ export async function POST(req: Request) {
       },
     });
 
+    // Create notification for the mating
+    await prisma.notification.create({
+      data: {
+        type: 'MATING',
+        title: 'New Mating Recorded',
+        message: `Buck ${mating.buck.rabbitId} mated with Doe ${mating.doe.rabbitId} on ${matingDateObj.toLocaleDateString()}`,
+        priority: 'NORMAL',
+        relatedId: mating.id,
+      },
+    });
+
     return NextResponse.json(mating, { status: 201 });
   } catch (error) {
     console.error('Error creating mating:', error);

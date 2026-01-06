@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import useFetchWithLoading from '@/hooks/useFetchWithLoading';
 import Link from 'next/link';
 import { useActiveLocation } from '@/contexts/ActiveLocationContext';
+import { useDashboardRefresh } from '@/contexts/DashboardRefreshContext';
 
 interface Stats {
   totalRabbits: number;
@@ -23,7 +24,14 @@ interface Stats {
 }
 
 export default function DashboardPage() {
+  return (
+    <DashboardContent />
+  );
+}
+
+function DashboardContent() {
   const { activeLocation } = useActiveLocation();
+  const { lastRefresh } = useDashboardRefresh();
   const [stats, setStats] = useState<Stats>({
     totalRabbits: 0,
     pendingMatings: 0,
@@ -42,6 +50,7 @@ export default function DashboardPage() {
   });
   const [loading, setLoading] = useState(true);
   const [notifications, setNotifications] = useState<string[]>([]);
+  const [apiNotifications, setApiNotifications] = useState<any[]>([]);
   const [offspring, setOffspring] = useState<any[]>([]);
 
   const fetchWithLoading = useFetchWithLoading();
@@ -52,136 +61,192 @@ export default function DashboardPage() {
     const sexTotal = (batch?.maleCount ?? 0) + (batch?.femaleCount ?? 0);
     return Math.max(available, sexTotal, batch?.count ?? 0);
   };
-  useEffect(() => {
-    async function fetchStats() {
-      try {
-        // Fetch rabbits
-        const rabbitsRes = await fetchWithLoading('/api/rabbits');
-        const rabbits = await rabbitsRes.json();
-        const parentsAlive = Array.isArray(rabbits) ? rabbits.filter((r:any)=> r.status === 'ACTIVE').length : 0;
 
-        // Fetch offspring batches (excludes ARCHIVED by default)
-        const offspringRes = await fetchWithLoading('/api/offspring');
-        const offspringResponse = await offspringRes.json();
-        // API can return either an array of batches or a paginated { items, total, page, pageSize }
-        const offspringBatches = Array.isArray(offspringResponse) ? offspringResponse : (offspringResponse?.items || []);
-        // Filter out ARCHIVED batches to prevent double-counting (they're historical after sexing)
-        const activeOffspringBatches = offspringBatches.filter((b: any) => b.status !== 'ARCHIVED');
-        setOffspring(activeOffspringBatches);
+  const fetchStats = async () => {
+    try {
+      // Fetch rabbits
+      const rabbitsRes = await fetchWithLoading('/api/rabbits');
+      const rabbits = await rabbitsRes.json();
+      const parentsAlive = Array.isArray(rabbits) ? rabbits.filter((r:any)=> r.status === 'ACTIVE').length : 0;
 
-        // Fetch matings
-        const matingsRes = await fetchWithLoading('/api/matings');
-        const matings = await matingsRes.json();
-        const pendingMatings = matings.filter((m: any) => !m.successful).length;
+      // Fetch offspring batches (excludes ARCHIVED by default)
+      const offspringRes = await fetchWithLoading('/api/offspring');
+      const offspringResponse = await offspringRes.json();
+      // API can return either an array of batches or a paginated { items, total, page, pageSize }
+      const offspringBatches = Array.isArray(offspringResponse) ? offspringResponse : (offspringResponse?.items || []);
+      // Filter out ARCHIVED batches to prevent double-counting (they're historical after sexing)
+      const activeOffspringBatches = offspringBatches.filter((b: any) => b.status !== 'ARCHIVED');
+      setOffspring(activeOffspringBatches);
 
-        // Fetch births
-        const birthsRes = await fetchWithLoading('/api/births');
-        const births = await birthsRes.json();
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        const recentBirths = births.filter((b: any) => new Date(b.birthDate) >= thirtyDaysAgo).length;
+      // Fetch matings
+      const matingsRes = await fetchWithLoading('/api/matings');
+      const matings = await matingsRes.json();
+      const pendingMatings = matings.filter((m: any) => !m.successful).length;
 
-        // Fetch sales
-        const salesRes = await fetchWithLoading('/api/sales');
-        const sales = await salesRes.json();
-        const totalSales = sales.reduce((sum: number, s: any) => sum + s.amount, 0);
+      // Fetch births
+      const birthsRes = await fetchWithLoading('/api/births');
+      const births = await birthsRes.json();
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const recentBirths = births.filter((b: any) => new Date(b.birthDate) >= thirtyDaysAgo).length;
 
-        // Fetch expenses
-        const expensesRes = await fetchWithLoading('/api/expenses');
-        const expenses = await expensesRes.json();
-        const totalExpenses = expenses.reduce((sum: number, e: any) => sum + e.amount, 0);
+      // Fetch sales
+      const salesRes = await fetchWithLoading('/api/sales');
+      const sales = await salesRes.json();
+      const totalSales = sales.reduce((sum: number, s: any) => sum + s.amount, 0);
 
-        // Fetch deaths (parents) and offspring deaths
-        const deathsRes = await fetchWithLoading('/api/deaths');
-        const deaths = await deathsRes.json();
-        const offspringDeathsRes = await fetchWithLoading('/api/offspring-deaths');
-        const offspringDeaths = await offspringDeathsRes.json();
-        const offspringDeathsTotal = Array.isArray(offspringDeaths)
-          ? offspringDeaths.reduce((sum: number, d: any) => sum + (d.count || 0), 0)
-          : 0;
-        const totalDeaths = deaths.length + offspringDeathsTotal;
+      // Fetch expenses
+      const expensesRes = await fetchWithLoading('/api/expenses');
+      const expenses = await expensesRes.json();
+      const totalExpenses = expenses.reduce((sum: number, e: any) => sum + e.amount, 0);
 
-        // Only count non-ARCHIVED batches (ARCHIVED batches are historical after sexing)
-        const unsexedOffspringCount = activeOffspringBatches
-          .filter((b:any)=> b.status === 'ACTIVE')
-          .reduce((sum: number, b: any) => sum + getAvailableCount(b), 0);
-        const sexedOffspringCount = activeOffspringBatches
-          .filter((b:any)=> b.status === 'SEXED')
-          .reduce((sum: number, b: any) => sum + getDisplayCount(b), 0);
-        const totalOffspringCount = unsexedOffspringCount + sexedOffspringCount;
-        // Adult health counts (exclude deceased)
-        const adultHealthy = rabbits.filter((r:any)=> r.status !== 'DECEASED' && r.healthStatus === 'HEALTHY').length;
-        const adultSick = rabbits.filter((r:any)=> r.status !== 'DECEASED' && r.healthStatus === 'SICK').length;
-        const adultInjured = rabbits.filter((r:any)=> r.status !== 'DECEASED' && r.healthStatus === 'INJURED').length;
-        // Offspring batch health counts (only for non-ARCHIVED batches)
-        const offspringHealthy = activeOffspringBatches.filter((b:any)=> b.overallHealthStatus === 'HEALTHY').length;
-        const offspringSick = activeOffspringBatches.filter((b:any)=> b.overallHealthStatus === 'SICK').length;
-        const offspringInjured = activeOffspringBatches.filter((b:any)=> b.overallHealthStatus === 'INJURED').length;
-        setStats({
-          totalRabbits: parentsAlive + totalOffspringCount,
-          pendingMatings,
-          recentBirths,
-          totalSales,
-          totalExpenses,
-          totalDeaths,
-          adultDeaths: deaths.length,
-          offspringDeaths: offspringDeathsTotal,
-          adultHealthy,
-          adultSick,
-          adultInjured,
-          offspringHealthy,
-          offspringSick,
-          offspringInjured,
-        });
-        // Notifications build
-        const notes: string[] = [];
-        // Sick / Injured
-        rabbits.filter((r: any)=> r.healthStatus === 'SICK').forEach((r:any)=>{
-          notes.push(`⚠ Rabbit ${r.rabbitId} is sick${r.healthDescription?` – ${r.healthDescription}`:''}`);
-        });
-        rabbits.filter((r: any)=> r.healthStatus === 'INJURED').forEach((r:any)=>{
-          notes.push(`🩹 Rabbit ${r.rabbitId} is injured${r.healthDescription?` – ${r.healthDescription}`:''}`);
-        });
-        // Does ready for mating (≥42 days since last birth)
-        const birthsByDoe: Record<string, any[]> = {};
-        births.forEach((b:any)=>{ const doeId = b.mating?.doe?.id; if (doeId){ birthsByDoe[doeId] = birthsByDoe[doeId]||[]; birthsByDoe[doeId].push(b); }});
-        Object.keys(birthsByDoe).forEach(doeId => {
-          const doeBirths = birthsByDoe[doeId].sort((a,b)=> new Date(b.birthDate).getTime() - new Date(a.birthDate).getTime());
-          const last = doeBirths[0];
-          const days = (Date.now() - new Date(last.birthDate).getTime()) / (1000*60*60*24);
-          const doeRabbit = rabbits.find((r:any)=> r.id === doeId);
-          if (doeRabbit && doeRabbit.status === 'ACTIVE' && days >= 42) {
-            notes.push(`💕 Doe ${doeRabbit.rabbitId} ready for mating (last birth ${new Date(last.birthDate).toLocaleDateString()})`);
-          }
-        });
-        // Offspring ready for sexing (≥42 days old) - only check non-ARCHIVED batches
-        activeOffspringBatches.forEach((batch: any) => {
-          const birthDate = new Date(batch.birth.birthDate);
-          const days = (Date.now() - birthDate.getTime()) / (1000*60*60*24);
-          if (batch.status === 'ACTIVE' && days >= 42) {
-            notes.push(
-              `🔍 Batch ${batch.batchId} ready for sexing (${getAvailableCount(batch)} kits, ${Math.floor(
-                days,
-              )} days old)`,
-            );
-          }
-          if (batch.overallHealthStatus === 'SICK') {
-            notes.push(`⚠ Batch ${batch.batchId} marked sick (${getAvailableCount(batch)} kits)`);
-          }
-          if (batch.overallHealthStatus === 'INJURED') {
-            notes.push(`🩹 Batch ${batch.batchId} has injury (${getAvailableCount(batch)} kits)`);
-          }
-        });
-        setNotifications(notes);
-        setLoading(false);
-      } catch (error) {
-        console.error('Error fetching stats:', error);
-        setLoading(false);
-      }
+      // Fetch deaths (parents) and offspring deaths
+      const deathsRes = await fetchWithLoading('/api/deaths');
+      const deaths = await deathsRes.json();
+      const offspringDeathsRes = await fetchWithLoading('/api/offspring-deaths');
+      const offspringDeaths = await offspringDeathsRes.json();
+      const offspringDeathsTotal = Array.isArray(offspringDeaths)
+        ? offspringDeaths.reduce((sum: number, d: any) => sum + (d.count || 0), 0)
+        : 0;
+      const totalDeaths = deaths.length + offspringDeathsTotal;
+
+      // Only count non-ARCHIVED batches (ARCHIVED batches are historical after sexing)
+      const unsexedOffspringCount = activeOffspringBatches
+        .filter((b:any)=> b.status === 'ACTIVE')
+        .reduce((sum: number, b: any) => sum + getAvailableCount(b), 0);
+      const sexedOffspringCount = activeOffspringBatches
+        .filter((b:any)=> b.status === 'SEXED')
+        .reduce((sum: number, b: any) => sum + getDisplayCount(b), 0);
+      const totalOffspringCount = unsexedOffspringCount + sexedOffspringCount;
+      // Adult health counts (exclude deceased)
+      const adultHealthy = rabbits.filter((r:any)=> r.status !== 'DECEASED' && r.healthStatus === 'HEALTHY').length;
+      const adultSick = rabbits.filter((r:any)=> r.status !== 'DECEASED' && r.healthStatus === 'SICK').length;
+      const adultInjured = rabbits.filter((r:any)=> r.status !== 'DECEASED' && r.healthStatus === 'INJURED').length;
+      // Offspring batch health counts (only for non-ARCHIVED batches)
+      const offspringHealthy = activeOffspringBatches.filter((b:any)=> b.overallHealthStatus === 'HEALTHY').length;
+      const offspringSick = activeOffspringBatches.filter((b:any)=> b.overallHealthStatus === 'SICK').length;
+      const offspringInjured = activeOffspringBatches.filter((b:any)=> b.overallHealthStatus === 'INJURED').length;
+      setStats({
+        totalRabbits: parentsAlive + totalOffspringCount,
+        pendingMatings,
+        recentBirths,
+        totalSales,
+        totalExpenses,
+        totalDeaths,
+        adultDeaths: deaths.length,
+        offspringDeaths: offspringDeathsTotal,
+        adultHealthy,
+        adultSick,
+        adultInjured,
+        offspringHealthy,
+        offspringSick,
+        offspringInjured,
+      });
+      // Fetch notifications
+      const notificationsRes = await fetchWithLoading('/api/notifications');
+      const fetchedApiNotifications = await notificationsRes.json();
+      setApiNotifications(fetchedApiNotifications);
+
+      // Notifications build (combine API notifications with dynamic ones)
+      const notes: string[] = [];
+      
+      // Add API notifications
+      fetchedApiNotifications.forEach((n: any) => {
+        if (!n.read) { // Only show unread notifications
+          const emoji = n.type === 'MATING' ? '💕' : n.type === 'SEXING' ? '🔍' : '📢';
+          notes.push(`${emoji} ${n.title}: ${n.message}`);
+        }
+      });
+
+      // Dynamic notifications (health, mating readiness, sexing readiness)
+      // Sick / Injured
+      rabbits.filter((r: any)=> r.healthStatus === 'SICK').forEach((r:any)=>{
+        notes.push(`⚠ Rabbit ${r.rabbitId} is sick${r.healthDescription?` – ${r.healthDescription}`:''}`);
+      });
+      rabbits.filter((r: any)=> r.healthStatus === 'INJURED').forEach((r:any)=>{
+        notes.push(`🩹 Rabbit ${r.rabbitId} is injured${r.healthDescription?` – ${r.healthDescription}`:''}`);
+      });
+      // Does ready for mating (≥42 days since last birth, but no matings since then)
+      const birthsByDoe: Record<string, any[]> = {};
+      const matingsByDoe: Record<string, any[]> = {};
+      births.forEach((b:any)=>{ const doeId = b.mating?.doe?.id; if (doeId){ birthsByDoe[doeId] = birthsByDoe[doeId]||[]; birthsByDoe[doeId].push(b); }});
+      matings.forEach((m:any)=>{ const doeId = m.doe?.id; if (doeId){ matingsByDoe[doeId] = matingsByDoe[doeId]||[]; matingsByDoe[doeId].push(m); }});
+
+      Object.keys(birthsByDoe).forEach(doeId => {
+        const doeBirths = birthsByDoe[doeId].sort((a,b)=> new Date(b.birthDate).getTime() - new Date(a.birthDate).getTime());
+        const lastBirth = doeBirths[0];
+
+        // Find the most recent mating for this doe (any mating, not just successful)
+        const doeMatings = matingsByDoe[doeId] || [];
+        const lastMating = doeMatings.sort((a,b)=> new Date(b.matingDate).getTime() - new Date(a.matingDate).getTime())[0];
+
+        // Use the most recent event (birth or any mating) to determine readiness
+        let lastEventDate: Date;
+        let eventType: 'birth' | 'mating';
+
+        if (lastMating && new Date(lastMating.matingDate) > new Date(lastBirth.birthDate)) {
+          lastEventDate = new Date(lastMating.matingDate);
+          eventType = 'mating';
+        } else {
+          lastEventDate = new Date(lastBirth.birthDate);
+          eventType = 'birth';
+        }
+
+        const days = (Date.now() - lastEventDate.getTime()) / (1000*60*60*24);
+        const doeRabbit = rabbits.find((r:any)=> r.id === doeId);
+
+        // Only show notification if the last event was a birth and 42+ days have passed
+        // If the last event was ANY mating, don't show (she's been bred)
+        if (doeRabbit && doeRabbit.status === 'ACTIVE' && eventType === 'birth' && days >= 42) {
+          notes.push(`💕 Doe ${doeRabbit.rabbitId} ready for mating (last birth ${new Date(lastBirth.birthDate).toLocaleDateString()})`);
+        }
+      });
+      // Offspring ready for sexing (≥42 days old) - only check non-ARCHIVED batches
+      activeOffspringBatches.forEach((batch: any) => {
+        const birthDate = new Date(batch.birth.birthDate);
+        const days = (Date.now() - birthDate.getTime()) / (1000*60*60*24);
+        if (batch.status === 'ACTIVE' && days >= 42) {
+          notes.push(
+            `🔍 Batch ${batch.batchId} ready for sexing (${getAvailableCount(batch)} kits, ${Math.floor(
+              days,
+            )} days old)`,
+          );
+        }
+        if (batch.overallHealthStatus === 'SICK') {
+          notes.push(`⚠ Batch ${batch.batchId} marked sick (${getAvailableCount(batch)} kits)`);
+        }
+        if (batch.overallHealthStatus === 'INJURED') {
+          notes.push(`🩹 Batch ${batch.batchId} has injury (${getAvailableCount(batch)} kits)`);
+        }
+      });
+      setNotifications(notes);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+      setLoading(false);
     }
+  };
 
+  const markNotificationAsRead = async (notificationId: string) => {
+    try {
+      await fetchWithLoading('/api/notifications', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: notificationId, read: true }),
+      });
+      // Update local state
+      setApiNotifications(prev => prev.map(n => 
+        n.id === notificationId ? { ...n, read: true } : n
+      ));
+      // Refresh notifications
+      fetchStats();
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+  useEffect(() => {
     fetchStats();
-  }, []);
+  }, [lastRefresh]);
 
   if (loading) {
     return <div className="text-center py-12">Loading dashboard...</div>;
@@ -374,11 +439,26 @@ export default function DashboardPage() {
           <p className="text-sm text-gray-500 dark:text-gray-400">No active alerts. Farm status is normal.</p>
         ) : (
           <ul className="space-y-2">
-            {notifications.map((n,i)=>(
-              <li key={i} className="text-sm flex items-start gap-2 bg-gray-50 dark:bg-gray-700/40 p-2 rounded">
-                <span>{n}</span>
-              </li>
-            ))}
+            {notifications.map((n,i)=> {
+              // Check if this is an API notification
+              const apiNotification = apiNotifications.find(an => {
+                const emoji = an.type === 'MATING' ? '💕' : an.type === 'SEXING' ? '🔍' : '📢';
+                return !an.read && n.startsWith(`${emoji} ${an.title}: ${an.message}`);
+              });
+              
+              return (
+                <li key={i} className={`text-sm flex items-start gap-2 p-2 rounded ${
+                  apiNotification 
+                    ? 'bg-blue-50 dark:bg-blue-900/20 cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/30' 
+                    : 'bg-gray-50 dark:bg-gray-700/40'
+                }`} onClick={apiNotification ? () => markNotificationAsRead(apiNotification.id) : undefined}>
+                  <span>{n}</span>
+                  {apiNotification && (
+                    <span className="text-xs text-blue-600 dark:text-blue-400 ml-auto">Click to mark as read</span>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
         {notifications.some(n=> n.startsWith('💕')) && (
