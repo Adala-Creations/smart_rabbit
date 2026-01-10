@@ -194,6 +194,7 @@ model OffspringBatch {
   cage                Cage?                         @relation(fields: [cageId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cage")
   healthHistory       OffspringBatchHealthHistory[]
   weights             OffspringWeight[]
+  sales               Sale[]
 }
 
 model OffspringBatchHealthHistory {
@@ -251,17 +252,20 @@ model OffspringWeight {
 }
 
 model Sale {
-  id           String   @id @default(cuid())
+  id           String          @id @default(cuid())
   rabbitId     String?
+  batchId      String?
+  quantitySold Int             @default(1)
   description  String
   amount       Float
   saleDate     DateTime
   buyerName    String?
   buyerContact String?
   notes        String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  rabbit       Rabbit?  @relation(fields: [rabbitId], references: [id])
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  rabbit       Rabbit?         @relation(fields: [rabbitId], references: [id])
+  batch        OffspringBatch? @relation(fields: [batchId], references: [id])
 }
 
 model Expense {

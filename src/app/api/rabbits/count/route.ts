@@ -30,50 +30,32 @@ export async function GET(req: Request) {
       },
     });
 
-    // Offspring: anchor on alive-at-birth and subtract subsequent recorded offspring deaths
-    // Gather births at this location through mating -> doe cage -> rabbitry -> location
-    const birthsAtLocation = await prisma.birth.findMany({
+    // Offspring: sum of active batch counts
+    const offspringCount = await prisma.offspringBatch.aggregate({
       where: {
-        mating: {
-          doe: {
-            cage: {
-              rabbitry: {
-                locationId,
+        status: 'ACTIVE',
+        birth: {
+          mating: {
+            doe: {
+              cage: {
+                rabbitry: {
+                  locationId,
+                },
               },
             },
           },
         },
       },
-      select: {
-        id: true,
-        aliveKits: true,
+      _sum: {
+        count: true,
       },
     });
 
-    const birthIds = birthsAtLocation.map((b) => b.id);
+    const offspringTotal = offspringCount._sum.count ?? 0;
 
-    let offspringDeathsByBirth: Record<string, number> = {};
-    if (birthIds.length > 0) {
-      const offspringDeaths = await prisma.offspringDeath.groupBy({
-        by: ['birthId'],
-        where: { birthId: { in: birthIds } },
-        _sum: { count: true },
-      });
-      offspringDeathsByBirth = offspringDeaths.reduce<Record<string, number>>((acc, d) => {
-        acc[d.birthId] = (d._sum.count ?? 0) as number;
-        return acc;
-      }, {});
-    }
+    const count = parentCount + offspringTotal;
 
-    const offspringCount = birthsAtLocation.reduce((sum, b) => {
-      const deaths = offspringDeathsByBirth[b.id] ?? 0;
-      const aliveNow = Math.max(0, (b.aliveKits ?? 0) - deaths);
-      return sum + aliveNow;
-    }, 0);
-
-    const count = parentCount + offspringCount;
-
-    return NextResponse.json({ count, parentCount, offspringCount });
+    return NextResponse.json({ count, parentCount, offspringCount: offspringTotal });
   } catch (error) {
     console.error('Error counting rabbits:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

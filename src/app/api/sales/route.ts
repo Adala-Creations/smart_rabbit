@@ -14,6 +14,7 @@ export async function GET() {
     const sales = await prisma.sale.findMany({
       include: {
         rabbit: true,
+        batch: true,
       },
       orderBy: { saleDate: 'desc' },
     });
@@ -33,7 +34,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { rabbitId, description, amount, saleDate, buyerName, buyerContact, notes } = await req.json();
+    const { rabbitId, batchId, quantitySold, description, amount, saleDate, buyerName, buyerContact, notes } = await req.json();
 
     if (!description || !amount || !saleDate) {
       return NextResponse.json(
@@ -42,9 +43,18 @@ export async function POST(req: Request) {
       );
     }
 
+    if (rabbitId && batchId) {
+      return NextResponse.json(
+        { error: 'Cannot sell both individual rabbit and batch at the same time' },
+        { status: 400 }
+      );
+    }
+
     const sale = await prisma.sale.create({
       data: {
         rabbitId,
+        batchId,
+        quantitySold: quantitySold ? parseInt(quantitySold) : 1,
         description,
         amount: parseFloat(amount),
         saleDate: new Date(saleDate),
@@ -54,6 +64,7 @@ export async function POST(req: Request) {
       },
       include: {
         rabbit: true,
+        batch: true,
       },
     });
 
@@ -63,6 +74,20 @@ export async function POST(req: Request) {
         where: { id: rabbitId },
         data: { status: 'SOLD' },
       });
+    }
+
+    // If batch is sold, update count
+    if (batchId) {
+      const batch = await prisma.offspringBatch.findUnique({
+        where: { id: batchId },
+      });
+      if (batch) {
+        const newCount = Math.max(0, batch.count - (quantitySold ? parseInt(quantitySold) : batch.count));
+        await prisma.offspringBatch.update({
+          where: { id: batchId },
+          data: { count: newCount },
+        });
+      }
     }
 
     return NextResponse.json(sale, { status: 201 });
@@ -98,6 +123,7 @@ export async function PUT(req: Request) {
       },
       include: {
         rabbit: true,
+        batch: true,
       },
     });
 

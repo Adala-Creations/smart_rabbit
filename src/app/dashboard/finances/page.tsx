@@ -25,6 +25,11 @@ export default function FinancesPage() {
   const [viewingDebtor, setViewingDebtor] = useState<any | null>(null);
   const [viewingCreditor, setViewingCreditor] = useState<any | null>(null);
 
+  const [saleType, setSaleType] = useState<'rabbit' | 'batch'>('rabbit');
+  const [batches, setBatches] = useState<any[]>([]);
+  const [selectedBatchId, setSelectedBatchId] = useState('');
+  const [quantitySold, setQuantitySold] = useState('');
+
   const [saleData, setSaleData] = useState({
     rabbitId: '',
     description: '',
@@ -72,12 +77,13 @@ export default function FinancesPage() {
 
   const fetchData = async () => {
     try {
-      const [salesRes, expensesRes, debtorsRes, creditorsRes, rabbitsRes] = await Promise.all([
+      const [salesRes, expensesRes, debtorsRes, creditorsRes, rabbitsRes, batchesRes] = await Promise.all([
         fetchWithLoading('/api/sales'),
         fetchWithLoading('/api/expenses'),
         fetchWithLoading('/api/debtors'),
         fetchWithLoading('/api/creditors'),
         fetchWithLoading('/api/rabbits'),
+        fetchWithLoading('/api/offspring?status=ACTIVE'),
       ]);
 
       setSales(await salesRes.json());
@@ -85,6 +91,7 @@ export default function FinancesPage() {
       setDebtors(await debtorsRes.json());
       setCreditors(await creditorsRes.json());
       setRabbits(await rabbitsRes.json());
+      setBatches(await batchesRes.json());
     } catch (error) {
       console.error('Error fetching data:', error);
     }
@@ -103,7 +110,9 @@ export default function FinancesPage() {
         body: JSON.stringify({
           ...(editingSaleId ? { id: editingSaleId } : {}),
           ...saleData,
-          rabbitId: saleData.rabbitId || undefined,
+          rabbitId: saleType === 'rabbit' ? (saleData.rabbitId || undefined) : undefined,
+          batchId: saleType === 'batch' ? selectedBatchId : undefined,
+          quantitySold: saleType === 'batch' ? quantitySold : undefined,
         }),
       });
 
@@ -119,6 +128,8 @@ export default function FinancesPage() {
           buyerContact: '',
           notes: '',
         });
+        setSelectedBatchId('');
+        setQuantitySold('');
         fetchData();
       }
     } catch (error) {
@@ -128,6 +139,9 @@ export default function FinancesPage() {
 
   const handleSaleEdit = (sale: any) => {
     setEditingSaleId(sale.id);
+    setSaleType(sale.batchId ? 'batch' : 'rabbit');
+    setSelectedBatchId(sale.batchId || '');
+    setQuantitySold(sale.quantitySold ? sale.quantitySold.toString() : '1');
     setSaleData({
       rabbitId: sale.rabbitId || '',
       description: sale.description,
@@ -166,6 +180,9 @@ export default function FinancesPage() {
       buyerContact: '',
       notes: '',
     });
+    setSelectedBatchId('');
+    setQuantitySold('');
+    setSaleType('rabbit');
   };
 
   const handleExpenseSubmit = async (e: React.FormEvent) => {
@@ -473,6 +490,12 @@ export default function FinancesPage() {
                     <p className="text-gray-900 dark:text-white">{viewingSale.rabbit.rabbitId} - {viewingSale.rabbit.name || 'Unnamed'}</p>
                   </div>
                 )}
+                {viewingSale.batch && (
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Batch</p>
+                    <p className="text-gray-900 dark:text-white">{viewingSale.batch.batchId} - {viewingSale.quantitySold} rabbits sold</p>
+                  </div>
+                )}
                 {viewingSale.buyerName && (
                   <div>
                     <p className="text-sm text-gray-500 dark:text-gray-400">Buyer Name</p>
@@ -746,20 +769,65 @@ export default function FinancesPage() {
           <form onSubmit={handleSaleSubmit} className="mb-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1 text-gray-900 dark:text-white">Rabbit (Optional)</label>
+                <label className="block text-sm font-medium mb-1 text-gray-900 dark:text-white">Sale Type</label>
                 <select
-                  value={saleData.rabbitId}
-                  onChange={(e) => setSaleData({ ...saleData, rabbitId: e.target.value })}
+                  value={saleType}
+                  onChange={(e) => setSaleType(e.target.value as 'rabbit' | 'batch')}
                   className="w-full px-3 py-2 border rounded-lg dark:bg-gray-600 dark:border-gray-500 dark:text-white"
                 >
-                  <option value="">No specific rabbit</option>
-                  {rabbits.filter(r => r.status === 'ACTIVE').map((rabbit) => (
-                    <option key={rabbit.id} value={rabbit.id}>
-                      {rabbit.rabbitId} - {rabbit.name || 'Unnamed'}
-                    </option>
-                  ))}
+                  <option value="rabbit">Individual Rabbit</option>
+                  <option value="batch">Rabbit Batch</option>
                 </select>
               </div>
+              {saleType === 'rabbit' && (
+                <div>
+                  <label className="block text-sm font-medium mb-1 text-gray-900 dark:text-white">Rabbit (Optional)</label>
+                  <select
+                    value={saleData.rabbitId}
+                    onChange={(e) => setSaleData({ ...saleData, rabbitId: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg dark:bg-gray-600 dark:border-gray-500 dark:text-white"
+                  >
+                    <option value="">No specific rabbit</option>
+                    {rabbits.filter(r => r.status === 'ACTIVE').map((rabbit) => (
+                      <option key={rabbit.id} value={rabbit.id}>
+                        {rabbit.rabbitId} - {rabbit.name || 'Unnamed'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {saleType === 'batch' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium mb-1 text-gray-900 dark:text-white">Batch *</label>
+                    <select
+                      required
+                      value={selectedBatchId}
+                      onChange={(e) => setSelectedBatchId(e.target.value)}
+                      className="w-full px-3 py-2 border rounded-lg dark:bg-gray-600 dark:border-gray-500 dark:text-white"
+                    >
+                      <option value="">Select batch</option>
+                      {batches.filter(b => b.liveCount > 0).map((batch) => (
+                        <option key={batch.id} value={batch.id}>
+                          {batch.batchId} - {batch.liveCount} rabbits
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1 text-gray-900 dark:text-white">Quantity Sold *</label>
+                    <input
+                      type="number"
+                      min="1"
+                      required
+                      value={quantitySold}
+                      onChange={(e) => setQuantitySold(e.target.value)}
+                      placeholder="Number of rabbits sold"
+                      className="w-full px-3 py-2 border rounded-lg dark:bg-gray-600 dark:border-gray-500 dark:text-white"
+                    />
+                  </div>
+                </>
+              )}
               <div>
                 <label className="block text-sm font-medium mb-1 text-gray-900 dark:text-white">Description *</label>
                 <input
@@ -836,6 +904,7 @@ export default function FinancesPage() {
                   </td>
                   <td className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
                     {sale.description}
+                    {sale.batch && ` (${sale.batch.batchId} - ${sale.quantitySold} rabbits)`}
                   </td>
                   <td className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
                     {sale.buyerName || '-'}
