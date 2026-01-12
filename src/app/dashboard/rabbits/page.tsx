@@ -532,7 +532,7 @@ export default function RabbitsPage() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Rabbits</h1>
           <p className="mt-2 text-gray-600 dark:text-gray-400">
-            Manage your rabbit inventory ({rabbits.length} parents, {offspring.reduce((s,b)=> s + (offspringView === 'growers' ? getDisplayCount(b) : getAvailableCount(b)), 0)} offspring)
+            Manage your rabbit inventory ({rabbits.filter(r => r.status !== 'DECEASED').length} parents, {offspring.filter((batch:any) => getDisplayCount(batch) > 0).reduce((s,b)=> s + (offspringView === 'growers' ? getDisplayCount(b) : getAvailableCount(b)), 0)} offspring)
           </p>
         </div>
         <div className="flex gap-2">
@@ -570,7 +570,7 @@ export default function RabbitsPage() {
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400'
             }`}
           >
-            Parents ({rabbits.length})
+            Parents ({rabbits.filter(r => r.status !== 'DECEASED').length})
           </button>
           <button
             onClick={() => setActiveTab('offspring')}
@@ -580,7 +580,7 @@ export default function RabbitsPage() {
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400'
             }`}
           >
-            Offspring ({offspring.length} batches, {offspring.reduce((s,b)=> s + (offspringView === 'growers' ? getDisplayCount(b) : getAvailableCount(b)), 0)} kits)
+            Offspring ({offspring.filter((batch:any) => getDisplayCount(batch) > 0).length} batches, {offspring.filter((batch:any) => getDisplayCount(batch) > 0).reduce((s,b)=> s + (offspringView === 'growers' ? getDisplayCount(b) : getAvailableCount(b)), 0)} kits)
           </button>
         </nav>
       </div>
@@ -1263,7 +1263,7 @@ export default function RabbitsPage() {
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-            {offspring.map((batch:any) => {
+            {offspring.filter((batch:any) => getDisplayCount(batch) > 0).map((batch:any) => {
               const birthDate = new Date(batch.birth.birthDate);
               const ageDays = Math.floor((Date.now() - birthDate.getTime()) / (1000*60*60*24));
               const ageWeeks = Math.floor(ageDays / 7);

@@ -82,15 +82,24 @@ export async function GET(req: Request) {
     });
 
     const decoratedOffspring = offspring.map((batch) => {
-      const availableCount =
-        adjustedCountByBatch[batch.id] !== undefined
-          ? Math.max(0, adjustedCountByBatch[batch.id])
-          : batch.count;
+      let availableCount: number;
+
+      if (batch.status === 'SEXED') {
+        // For sexed batches, available count is the sum of male and female counts
+        availableCount = (batch.maleCount || 0) + (batch.femaleCount || 0);
+      } else {
+        // For unsexed batches, use the adjusted count (original count minus deaths)
+        availableCount =
+          adjustedCountByBatch[batch.id] !== undefined
+            ? Math.max(0, adjustedCountByBatch[batch.id])
+            : batch.count;
+      }
+
       return {
         ...batch,
         originalCount: batch.count,
         availableCount,
-        deceasedKits: Math.max(0, batch.count - availableCount),
+        deceasedKits: batch.status === 'SEXED' ? 0 : Math.max(0, batch.count - availableCount),
       };
     });
 

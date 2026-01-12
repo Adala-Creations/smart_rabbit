@@ -15,6 +15,9 @@ export async function GET() {
       orderBy: { createdAt: 'desc' },
     });
 
+    console.log('Fetched debtors count:', debtors.length);
+    console.log('Debtors data:', debtors.map(d => ({ id: d.id, name: d.name, amountOwed: d.amountOwed })));
+
     return NextResponse.json(debtors);
   } catch (error) {
     console.error('Error fetching debtors:', error);

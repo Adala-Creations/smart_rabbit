@@ -12,6 +12,11 @@ export async function GET() {
     }
 
     const rabbits = await prisma.rabbit.findMany({
+      where: {
+        status: {
+          not: 'SOLD',
+        },
+      },
       include: {
         cage: {
           include: {

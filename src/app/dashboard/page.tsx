@@ -67,7 +67,7 @@ function DashboardContent() {
       // Fetch rabbits
       const rabbitsRes = await fetchWithLoading('/api/rabbits');
       const rabbits = await rabbitsRes.json();
-      const parentsAlive = Array.isArray(rabbits) ? rabbits.filter((r:any)=> r.status === 'ACTIVE').length : 0;
+      const parentsAlive = Array.isArray(rabbits) ? rabbits.filter((r:any)=> r.status !== 'DECEASED').length : 0;
 
       // Fetch offspring batches (excludes ARCHIVED by default)
       const offspringRes = await fetchWithLoading('/api/offspring');

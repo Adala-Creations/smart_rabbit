@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import useFetchWithLoading from '@/hooks/useFetchWithLoading';
 import { useToast } from '@/components/ToastProvider';
 import {
@@ -613,6 +614,24 @@ export default function ReportsPage() {
         >
           {showAnalysis ? 'Hide Analysis' : 'View Analysis'}
         </button>
+      </div>
+
+      {/* Navigation Links */}
+      <div className="mb-6">
+        <nav className="flex space-x-4 border-b border-gray-200 dark:border-gray-700">
+          <Link
+            href="/dashboard/reports"
+            className="px-3 py-2 text-sm font-medium text-gray-900 dark:text-white border-b-2 border-blue-500"
+          >
+            Export Reports
+          </Link>
+          <Link
+            href="/dashboard/reports/history"
+            className="px-3 py-2 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 border-b-2 border-transparent hover:border-gray-300 dark:hover:border-gray-600"
+          >
+            History
+          </Link>
+        </nav>
       </div>
 
       {!showAnalysis && (

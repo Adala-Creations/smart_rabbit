@@ -15,6 +15,9 @@ export async function GET() {
       orderBy: { expenseDate: 'desc' },
     });
 
+    console.log('Fetched expenses count:', expenses.length);
+    console.log('Expenses data:', expenses.map(e => ({ id: e.id, description: e.description, amount: e.amount })));
+
     return NextResponse.json(expenses);
   } catch (error) {
     console.error('Error fetching expenses:', error);

@@ -25,10 +25,11 @@ export default function FinancesPage() {
   const [viewingDebtor, setViewingDebtor] = useState<any | null>(null);
   const [viewingCreditor, setViewingCreditor] = useState<any | null>(null);
 
-  const [saleType, setSaleType] = useState<'rabbit' | 'batch'>('rabbit');
+  const [saleType, setSaleType] = useState<'rabbit' | 'batch' | 'multi-batch'>('rabbit');
   const [batches, setBatches] = useState<any[]>([]);
   const [selectedBatchId, setSelectedBatchId] = useState('');
   const [quantitySold, setQuantitySold] = useState('');
+  const [selectedBatches, setSelectedBatches] = useState<Array<{batchId: string, quantity: number, batch: any}>>([]);
 
   const [saleData, setSaleData] = useState({
     rabbitId: '',
@@ -69,8 +70,36 @@ export default function FinancesPage() {
     notes: '',
   });
 
-  const fetchWithLoading = useFetchWithLoading();
+  const handleAddBatch = () => {
+    if (!selectedBatchId || !quantitySold) return;
+    
+    const batch = batches.find(b => b.id === selectedBatchId);
+    if (!batch) return;
+
+    const quantity = parseInt(quantitySold);
+    if (quantity <= 0 || quantity > batch.availableCount) return;
+
+    // Check if batch is already selected
+    if (selectedBatches.some(sb => sb.batchId === selectedBatchId)) {
+      toast.pushToast({ message: 'Batch already selected', type: 'error' });
+      return;
+    }
+
+    setSelectedBatches([...selectedBatches, {
+      batchId: selectedBatchId,
+      quantity,
+      batch
+    }]);
+
+    setSelectedBatchId('');
+    setQuantitySold('');
+  };
+
+  const handleRemoveBatch = (batchId: string) => {
+    setSelectedBatches(selectedBatches.filter(sb => sb.batchId !== batchId));
+  };
   const confirm = useConfirm();
+  const fetchWithLoading = useFetchWithLoading();
   useEffect(() => {
     fetchData();
   }, []);
@@ -83,15 +112,22 @@ export default function FinancesPage() {
         fetchWithLoading('/api/debtors'),
         fetchWithLoading('/api/creditors'),
         fetchWithLoading('/api/rabbits'),
-        fetchWithLoading('/api/offspring?status=ACTIVE'),
+        fetchWithLoading('/api/offspring?status=SEXED'),
       ]);
 
-      setSales(await salesRes.json());
-      setExpenses(await expensesRes.json());
-      setDebtors(await debtorsRes.json());
-      setCreditors(await creditorsRes.json());
-      setRabbits(await rabbitsRes.json());
-      setBatches(await batchesRes.json());
+      const salesData = await salesRes.json();
+      const expensesData = await expensesRes.json();
+      const debtorsData = await debtorsRes.json();
+      const creditorsData = await creditorsRes.json();
+      const rabbitsData = await rabbitsRes.json();
+      const batchesData = await batchesRes.json();
+
+      setSales(salesData);
+      setExpenses(expensesData);
+      setDebtors(debtorsData);
+      setCreditors(creditorsData);
+      setRabbits(rabbitsData);
+      setBatches(batchesData.items || batchesData);
     } catch (error) {
       console.error('Error fetching data:', error);
     }
@@ -112,6 +148,7 @@ export default function FinancesPage() {
           ...saleData,
           rabbitId: saleType === 'rabbit' ? (saleData.rabbitId || undefined) : undefined,
           batchId: saleType === 'batch' ? selectedBatchId : undefined,
+          batches: saleType === 'multi-batch' ? selectedBatches.map(sb => ({ batchId: sb.batchId, quantitySold: sb.quantity })) : undefined,
           quantitySold: saleType === 'batch' ? quantitySold : undefined,
         }),
       });
@@ -130,6 +167,7 @@ export default function FinancesPage() {
         });
         setSelectedBatchId('');
         setQuantitySold('');
+        setSelectedBatches([]);
         fetchData();
       }
     } catch (error) {
@@ -182,6 +220,7 @@ export default function FinancesPage() {
     });
     setSelectedBatchId('');
     setQuantitySold('');
+    setSelectedBatches([]);
     setSaleType('rabbit');
   };
 
@@ -418,7 +457,7 @@ export default function FinancesPage() {
   const totalSales = sales.reduce((sum, s) => sum + s.amount, 0);
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
   const totalDebtors = debtors.reduce((sum, d) => sum + d.amountOwed, 0);
-  const totalCreditors = creditors.reduce((sum, c) => sum + c.amountOwed, 0);
+  const totalCreditors = creditors.filter(c => c.status !== 'PAID').reduce((sum, c) => sum + c.amountOwed, 0);
   const netProfit = totalSales - totalExpenses;
 
   return (
@@ -772,11 +811,12 @@ export default function FinancesPage() {
                 <label className="block text-sm font-medium mb-1 text-gray-900 dark:text-white">Sale Type</label>
                 <select
                   value={saleType}
-                  onChange={(e) => setSaleType(e.target.value as 'rabbit' | 'batch')}
+                  onChange={(e) => setSaleType(e.target.value as 'rabbit' | 'batch' | 'multi-batch')}
                   className="w-full px-3 py-2 border rounded-lg dark:bg-gray-600 dark:border-gray-500 dark:text-white"
                 >
                   <option value="rabbit">Individual Rabbit</option>
-                  <option value="batch">Rabbit Batch</option>
+                  <option value="batch">Single Batch</option>
+                  <option value="multi-batch">Multiple Batches</option>
                 </select>
               </div>
               {saleType === 'rabbit' && (
@@ -802,17 +842,21 @@ export default function FinancesPage() {
                     <label className="block text-sm font-medium mb-1 text-gray-900 dark:text-white">Batch *</label>
                     <select
                       required
+                      disabled={!!editingSaleId}
                       value={selectedBatchId}
                       onChange={(e) => setSelectedBatchId(e.target.value)}
-                      className="w-full px-3 py-2 border rounded-lg dark:bg-gray-600 dark:border-gray-500 dark:text-white"
+                      className="w-full px-3 py-2 border rounded-lg dark:bg-gray-600 dark:border-gray-500 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <option value="">Select batch</option>
-                      {batches.filter(b => b.liveCount > 0).map((batch) => (
+                      {batches.filter(b => Number(b.availableCount) > 0).map((batch) => (
                         <option key={batch.id} value={batch.id}>
-                          {batch.batchId} - {batch.liveCount} rabbits
+                          {batch.batchId} - {batch.availableCount} rabbits
                         </option>
                       ))}
                     </select>
+                    {editingSaleId && (
+                      <p className="text-sm text-gray-500 mt-1">Batch cannot be changed when editing a sale</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1 text-gray-900 dark:text-white">Quantity Sold *</label>
@@ -825,6 +869,63 @@ export default function FinancesPage() {
                       placeholder="Number of rabbits sold"
                       className="w-full px-3 py-2 border rounded-lg dark:bg-gray-600 dark:border-gray-500 dark:text-white"
                     />
+                  </div>
+                </>
+              )}
+              {saleType === 'multi-batch' && (
+                <>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium mb-2 text-gray-900 dark:text-white">Select Batches</label>
+                    <div className="flex gap-2 mb-2">
+                      <select
+                        value={selectedBatchId}
+                        onChange={(e) => setSelectedBatchId(e.target.value)}
+                        className="flex-1 px-3 py-2 border rounded-lg dark:bg-gray-600 dark:border-gray-500 dark:text-white"
+                      >
+                        <option value="">Select batch</option>
+                        {batches.filter(b => Number(b.availableCount) > 0 && !selectedBatches.some(sb => sb.batchId === b.id)).map((batch) => (
+                          <option key={batch.id} value={batch.id}>
+                            {batch.batchId} - {batch.availableCount} rabbits
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="number"
+                        min="1"
+                        value={quantitySold}
+                        onChange={(e) => setQuantitySold(e.target.value)}
+                        placeholder="Qty"
+                        className="w-20 px-3 py-2 border rounded-lg dark:bg-gray-600 dark:border-gray-500 dark:text-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddBatch}
+                        disabled={!selectedBatchId || !quantitySold}
+                        className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Add
+                      </button>
+                    </div>
+                    {selectedBatches.length > 0 && (
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Selected Batches:</p>
+                        {selectedBatches.map((sb) => (
+                          <div key={sb.batchId} className="flex items-center justify-between bg-gray-100 dark:bg-gray-600 p-2 rounded">
+                            <span className="text-sm">{sb.batch.batchId} - {sb.quantity} rabbits</span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveBatch(sb.batchId)}
+                              className="text-red-500 hover:text-red-700"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          Total: {selectedBatches.reduce((sum, sb) => sum + sb.quantity, 0)} rabbits
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </>
               )}
