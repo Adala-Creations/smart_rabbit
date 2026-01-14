@@ -143,67 +143,97 @@ export default function HistoryPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Rabbit History & Analytics</h1>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Rabbit History</h1>
       </div>
+      
+<div className="flex justify-center">
+  <div className="w-full max-w-7xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 rounded-xl p-6">
+    
+    {/* Header */}
+    <div className="flex items-center justify-center mb-6">
+      <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+        Current stats
+      </h3>
+    </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <div className="w-8 h-8 bg-blue-500 rounded-md flex items-center justify-center">
-                <span className="text-white text-sm font-semibold">∑</span>
-              </div>
-            </div>
-            <div className="ml-4">
-              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">Total Rabbits</dt>
-              <dd className="text-2xl font-semibold text-gray-900 dark:text-white">{stats.totalRabbits}</dd>
+    {/* Summary Cards */}
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+        <div className="flex items-center">
+          <div className="flex-shrink-0">
+            <div className="w-8 h-8 bg-blue-500 rounded-md flex items-center justify-center">
+              <span className="text-white text-sm font-semibold">∑</span>
             </div>
           </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <div className="w-8 h-8 bg-pink-500 rounded-md flex items-center justify-center">
-                <span className="text-white text-sm">♀️</span>
-              </div>
-            </div>
-            <div className="ml-4">
-              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">Does</dt>
-              <dd className="text-2xl font-semibold text-gray-900 dark:text-white">{stats.totalDoes}</dd>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <div className="w-8 h-8 bg-blue-600 rounded-md flex items-center justify-center">
-                <span className="text-white text-sm">♂️</span>
-              </div>
-            </div>
-            <div className="ml-4">
-              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">Bucks</dt>
-              <dd className="text-2xl font-semibold text-gray-900 dark:text-white">{stats.totalBucks}</dd>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <div className="w-8 h-8 bg-green-500 rounded-md flex items-center justify-center">
-                <span className="text-white text-sm font-semibold">🐰</span>
-              </div>
-            </div>
-            <div className="ml-4">
-              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">Offspring</dt>
-              <dd className="text-2xl font-semibold text-gray-900 dark:text-white">{stats.totalOffspring}</dd>
-            </div>
+          <div className="ml-4">
+            <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
+              Total Rabbits
+            </dt>
+            <dd className="text-2xl font-semibold text-gray-900 dark:text-white">
+              {stats.totalRabbits}
+            </dd>
           </div>
         </div>
       </div>
+
+      <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+        <div className="flex items-center">
+          <div className="flex-shrink-0">
+            <div className="w-8 h-8 bg-pink-500 rounded-md flex items-center justify-center">
+              <span className="text-white text-sm">♀️</span>
+            </div>
+          </div>
+          <div className="ml-4">
+            <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
+              Does
+            </dt>
+            <dd className="text-2xl font-semibold text-gray-900 dark:text-white">
+              {stats.totalDoes}
+            </dd>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+        <div className="flex items-center">
+          <div className="flex-shrink-0">
+            <div className="w-8 h-8 bg-blue-600 rounded-md flex items-center justify-center">
+              <span className="text-white text-sm">♂️</span>
+            </div>
+          </div>
+          <div className="ml-4">
+            <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
+              Bucks
+            </dt>
+            <dd className="text-2xl font-semibold text-gray-900 dark:text-white">
+              {stats.totalBucks}
+            </dd>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+        <div className="flex items-center">
+          <div className="flex-shrink-0">
+            <div className="w-8 h-8 bg-green-500 rounded-md flex items-center justify-center">
+              <span className="text-white text-sm font-semibold">🐰</span>
+            </div>
+          </div>
+          <div className="ml-4">
+            <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
+              Offspring
+            </dt>
+            <dd className="text-2xl font-semibold text-gray-900 dark:text-white">
+              {stats.totalOffspring}
+            </dd>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
 
       {/* Activity Summary */}
       <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
@@ -211,7 +241,7 @@ export default function HistoryPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="text-center">
             <div className="text-3xl font-bold text-green-600">{stats.totalBirths}</div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">Total Births</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">Total Birth Count</div>
           </div>
           <div className="text-center">
             <div className="text-3xl font-bold text-red-600">{stats.totalDeaths}</div>
