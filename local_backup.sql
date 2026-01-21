@@ -2,10 +2,10 @@
 -- PostgreSQL database dump
 --
 
-\restrict h8ntP9x24O8BM2veZxdf9nWgt0lHu9EdTXZfGfYQKOQIEBKsI9of6tgk3CUc0Pn
+\restrict P6i8rkf34twEfHbqfldB986R3iLIPYx2EEbNczBDLS5aSeXe486NCunK3EGjcQ2
 
--- Dumped from database version 16.11 (Ubuntu 16.11-0ubuntu0.24.04.1)
--- Dumped by pg_dump version 16.11 (Ubuntu 16.11-0ubuntu0.24.04.1)
+-- Dumped from database version 15.14
+-- Dumped by pg_dump version 15.14
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -244,7 +244,7 @@ CREATE TABLE public."Debtor" (
 ALTER TABLE public."Debtor" OWNER TO rabbit_user;
 
 --
--- Name: Expense; Type: TABLE; Schema: public; Owner: postgres
+-- Name: Expense; Type: TABLE; Schema: public; Owner: rabbit_user
 --
 
 CREATE TABLE public."Expense" (
@@ -260,7 +260,7 @@ CREATE TABLE public."Expense" (
 );
 
 
-ALTER TABLE public."Expense" OWNER TO postgres;
+ALTER TABLE public."Expense" OWNER TO rabbit_user;
 
 --
 -- Name: Location; Type: TABLE; Schema: public; Owner: postgres
@@ -320,7 +320,7 @@ CREATE TABLE public."Notification" (
 ALTER TABLE public."Notification" OWNER TO rabbit_user;
 
 --
--- Name: OffspringBatch; Type: TABLE; Schema: public; Owner: postgres
+-- Name: OffspringBatch; Type: TABLE; Schema: public; Owner: rabbit_user
 --
 
 CREATE TABLE public."OffspringBatch" (
@@ -342,7 +342,7 @@ CREATE TABLE public."OffspringBatch" (
 );
 
 
-ALTER TABLE public."OffspringBatch" OWNER TO postgres;
+ALTER TABLE public."OffspringBatch" OWNER TO rabbit_user;
 
 --
 -- Name: OffspringBatchHealthHistory; Type: TABLE; Schema: public; Owner: postgres
@@ -395,7 +395,7 @@ CREATE TABLE public."OffspringWeight" (
 ALTER TABLE public."OffspringWeight" OWNER TO postgres;
 
 --
--- Name: Rabbit; Type: TABLE; Schema: public; Owner: postgres
+-- Name: Rabbit; Type: TABLE; Schema: public; Owner: rabbit_user
 --
 
 CREATE TABLE public."Rabbit" (
@@ -419,7 +419,7 @@ CREATE TABLE public."Rabbit" (
 );
 
 
-ALTER TABLE public."Rabbit" OWNER TO postgres;
+ALTER TABLE public."Rabbit" OWNER TO rabbit_user;
 
 --
 -- Name: Rabbitry; Type: TABLE; Schema: public; Owner: postgres
@@ -454,7 +454,7 @@ CREATE TABLE public."RabbitryWorker" (
 ALTER TABLE public."RabbitryWorker" OWNER TO postgres;
 
 --
--- Name: Sale; Type: TABLE; Schema: public; Owner: postgres
+-- Name: Sale; Type: TABLE; Schema: public; Owner: rabbit_user
 --
 
 CREATE TABLE public."Sale" (
@@ -467,11 +467,13 @@ CREATE TABLE public."Sale" (
     "buyerContact" text,
     notes text,
     "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp(3) without time zone NOT NULL
+    "updatedAt" timestamp(3) without time zone NOT NULL,
+    "batchId" text,
+    "quantitySold" integer DEFAULT 1 NOT NULL
 );
 
 
-ALTER TABLE public."Sale" OWNER TO postgres;
+ALTER TABLE public."Sale" OWNER TO rabbit_user;
 
 --
 -- Name: Session; Type: TABLE; Schema: public; Owner: postgres
@@ -571,6 +573,9 @@ cmi7qnfss000pdvb4pjpzux6i	cmi7qm9s6000ndvb4gahk4koy	2025-09-25 22:00:00	9	9	0	10
 cmi7qsqu7000xdvb4o1cq0o8b	cmi7qrpk9000vdvb4wj93s4o9	2025-09-27 22:00:00	9	9	0	100% successful birth	2025-11-20 16:06:06.558	2025-11-20 16:06:06.558
 cmi7uusha000fdve45k44v400	cmi7ql57l000ldvb4cqyz92x3	2025-10-29 22:00:00	10	10	0	100% success	2025-11-20 17:59:40.118	2025-11-20 18:00:31.853
 cmi7qq2xu000tdvb4tersb3o6	cmi7qorrl000rdvb41lagyios	2025-09-26 22:00:00	8	3	5	5 died..birth occured outside cage	2025-11-20 16:04:02.1	2025-11-20 21:34:38.618
+cmkgsb8xj0001dvd4qjxkl29r	cmj92315o0003s6oq2e08z1v5	2026-01-10 00:00:00	7	7	0		2026-01-16 11:17:49.683	2026-01-16 11:17:49.683
+cmkgsbo8s0003dvd4fd5qg4jo	cmj922nae0001s6oq4iz79fk5	2026-01-11 00:00:00	6	6	0		2026-01-16 11:18:09.532	2026-01-16 11:18:09.532
+cmkgsemu80005dvd4x0l8b158	cmj923b760005s6oq9ebuesjt	2026-01-11 00:00:00	10	8	2		2026-01-16 11:20:27.613	2026-01-16 11:20:27.613
 \.
 
 
@@ -588,7 +593,7 @@ cmi7psk260007dvrssgha1kf9	BC-001	BREEDING	cmi7prz7e0005dvrsptxfllf7	12	12		2025-
 --
 
 COPY public."Creditor" (id, name, contact, "amountOwed", description, "dueDate", status, notes, "createdAt", "updatedAt") FROM stdin;
-cmk5pyi8w0000s6jiz13d41ey	Dad		19	Scale purchase	2026-01-08 00:00:00	PENDING		2026-01-08 17:26:28.064	2026-01-08 17:26:28.064
+cmk5pyi8w0000s6jiz13d41ey	Dad		20	Scale purchase	2026-01-08 00:00:00	PAID		2026-01-08 17:26:28.064	2026-01-12 18:35:23.395
 \.
 
 
@@ -610,17 +615,23 @@ COPY public."Debtor" (id, name, contact, "amountOwed", description, "dueDate", s
 
 
 --
--- Data for Name: Expense; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: Expense; Type: TABLE DATA; Schema: public; Owner: rabbit_user
 --
 
 COPY public."Expense" (id, description, category, amount, "expenseDate", vendor, notes, "createdAt", "updatedAt") FROM stdin;
 cmi7ufluq0007dve43ebkis8q	Hay Feed - 3 bales ($4 each)	Feed	12	2025-11-02 00:00:00	Hay supplier		2025-11-20 19:47:52.034	2025-11-20 19:47:52.034
-cmi7x0jf60001dvuw0gze65bj	Weight Scale purchase	Equipment	20	2025-09-13 00:00:00			2025-11-20 21:00:07.827	2025-11-20 21:00:07.827
 cmi7ulok8000bdve4oq4pwhn4	Post mortem fee	Feed	10	2025-11-20 00:00:00	Vet doctor		2025-11-20 19:52:35.48	2025-11-20 21:11:20.641
 cmi7ugigj0008dve4is42c5a7	50 Kg pellet feed	Feed	24	2025-11-02 00:00:00	Farm n City		2025-11-20 19:48:34.291	2025-11-20 21:11:29.124
 cmin4vxeu0001tgddrc3iqw6f	Transport fee	Other	1	2025-12-01 00:00:00	Makos		2025-12-01 12:37:02.31	2025-12-01 12:37:02.31
 cmiq8fhje0005tgddik75rm8o	3 Hay Bales	Feed	12	2025-12-03 00:00:00	Kuwadzana supplier		2025-12-03 16:39:32.234	2025-12-03 16:39:32.234
 cmin4x86o0002tgddtw5brows	50 Kg feed	Feed	24	2025-12-01 00:00:00	National Foods		2025-12-01 12:38:02.927	2025-12-03 16:39:59.851
+cmkbf942h0000dvio82obueoa	50kg pellet feed	Feed	24	2026-01-09 00:00:00	National Foods		2026-01-12 17:13:24.184	2026-01-12 17:13:24.184
+cmkbfasoj0002dvio7zfz04z2	Worksuit	Equipment	10	2026-01-09 00:00:00	Hardware Store		2026-01-12 17:14:42.739	2026-01-12 17:14:42.739
+cmkbfg3cq0003dvio2ytk0uow	Transport fee	Other	1	2026-01-09 00:00:00	Makos		2026-01-12 17:18:49.85	2026-01-12 17:18:49.85
+cmkgsfs680006dvd45dn2k40c	Transport 	Other	2	2026-01-15 00:00:00	Makos		2026-01-16 11:21:21.248	2026-01-16 11:21:21.248
+cmkgsh4l10007dvd4kmje9zos	Arm + Lever for knapsack	Equipment	5	2026-01-15 00:00:00	Mush Rabbits		2026-01-16 11:22:23.989	2026-01-16 11:22:23.989
+cmkbfaail0001dvio47lju86t	Virukill 1L 	Other	15	2026-01-09 00:00:00	Hardware Store		2026-01-12 17:14:19.197	2026-01-16 11:22:47.185
+cmi7x0jf60001dvuw0gze65bj	5kg Weight Scale purchase 	Equipment	20	2025-09-13 00:00:00	Electric store		2025-11-20 21:00:07.827	2026-01-16 13:20:09.667
 \.
 
 
@@ -642,9 +653,9 @@ cmi7qm9s6000ndvb4gahk4koy	cmi7qe2zk0001dvb43pe801zu	cmi7qiau0000ddvb4rh0letw4	20
 cmi7qorrl000rdvb41lagyios	cmi7qe2zk0001dvb43pe801zu	cmi7qj5vs000hdvb40ggli70q	2025-08-24 00:00:00	2025-09-23 00:00:00	t	Successful mating	2025-11-20 18:03:01.137	2025-11-20 18:04:02.302
 cmi7qrpk9000vdvb4wj93s4o9	cmi7qe2zk0001dvb43pe801zu	cmi7qff1l0005dvb4xmsq7999	2025-08-25 00:00:00	2025-09-24 00:00:00	t	Successful mating	2025-11-20 18:05:18.249	2025-11-20 18:06:06.577
 cmi7ql57l000ldvb4cqyz92x3	cmi7qe2zk0001dvb43pe801zu	cmi7qgdlt0009dvb4ci051zce	2025-09-24 00:00:00	2025-10-24 00:00:00	t	Successful mating	2025-11-20 18:00:11.937	2025-11-20 19:59:40.545
-cmj922nae0001s6oq4iz79fk5	cmi7qe2zk0001dvb43pe801zu	cmi7qj5vs000hdvb40ggli70q	2025-12-09 00:00:00	2026-01-08 00:00:00	f		2025-12-16 20:49:12.806	2025-12-16 20:49:12.806
-cmj92315o0003s6oq2e08z1v5	cmi7qe2zk0001dvb43pe801zu	cmi7qiau0000ddvb4rh0letw4	2025-12-09 00:00:00	2026-01-08 00:00:00	f		2025-12-16 20:49:30.78	2025-12-16 20:49:30.78
-cmj923b760005s6oq9ebuesjt	cmi7qe2zk0001dvb43pe801zu	cmi7qff1l0005dvb4xmsq7999	2025-12-09 00:00:00	2026-01-08 00:00:00	f		2025-12-16 20:49:43.795	2025-12-16 20:49:43.795
+cmj92315o0003s6oq2e08z1v5	cmi7qe2zk0001dvb43pe801zu	cmi7qiau0000ddvb4rh0letw4	2025-12-09 00:00:00	2026-01-08 00:00:00	t		2025-12-16 20:49:30.78	2026-01-16 11:17:49.729
+cmj922nae0001s6oq4iz79fk5	cmi7qe2zk0001dvb43pe801zu	cmi7qj5vs000hdvb40ggli70q	2025-12-09 00:00:00	2026-01-08 00:00:00	t		2025-12-16 20:49:12.806	2026-01-16 11:18:09.552
+cmj923b760005s6oq9ebuesjt	cmi7qe2zk0001dvb43pe801zu	cmi7qff1l0005dvb4xmsq7999	2025-12-09 00:00:00	2026-01-08 00:00:00	t		2025-12-16 20:49:43.795	2026-01-16 11:20:27.713
 \.
 
 
@@ -657,21 +668,24 @@ COPY public."Notification" (id, type, title, message, priority, read, "userId", 
 
 
 --
--- Data for Name: OffspringBatch; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: OffspringBatch; Type: TABLE DATA; Schema: public; Owner: rabbit_user
 --
 
 COPY public."OffspringBatch" (id, "batchId", "birthId", count, status, notes, "sourceBatchId", "createdAt", "updatedAt", "overallHealthStatus", "cageId", compartment, "maleCount", "femaleCount", "sexedAt") FROM stdin;
 cmi80vro80007dvrg8if02xrb	BTC-004	cmi7qq2xu000tdvb4tersb3o6	1	ARCHIVED	\N	\N	2025-11-20 20:48:23.769	2025-11-26 18:30:14.005	HEALTHY	cmi7psk260007dvrssgha1kf9	2	\N	\N	\N
 cmigcavzd0001dvs08n56oc3c	BTC-005	cmi7qq2xu000tdvb4tersb3o6	1	SEXED	\N	cmi80vro80007dvrg8if02xrb	2025-11-26 18:30:14.373	2025-11-26 18:30:14.373	HEALTHY	cmi7psk260007dvrssgha1kf9	11	0	1	\N
 cmi80v2h50005dvrg0toij07z	BTC-003	cmi7qnfss000pdvb4pjpzux6i	9	ARCHIVED	\N	\N	2025-11-20 20:47:51.113	2025-11-26 18:34:12.22	HEALTHY	cmi7psk260007dvrssgha1kf9	5	\N	\N	\N
-cmigcfzib000ddvs0h5fktnzw	BTC-006	cmi7qnfss000pdvb4pjpzux6i	5	SEXED	\N	cmi80v2h50005dvrg0toij07z	2025-11-26 18:34:12.227	2025-11-26 18:34:12.227	HEALTHY	cmi7psk260007dvrssgha1kf9	10	5	0	\N
-cmigcfzjo000hdvs09zawzh0f	BTC-007	cmi7qnfss000pdvb4pjpzux6i	4	SEXED	\N	cmi80v2h50005dvrg0toij07z	2025-11-26 18:34:12.276	2025-11-26 18:34:12.276	HEALTHY	cmi7psk260007dvrssgha1kf9	11	0	4	\N
 cmi8097x70003dvrgx8idmqgm	BTC-002	cmi7qsqu7000xdvb4o1cq0o8b	5	ARCHIVED	\N	\N	2025-11-20 20:30:51.74	2025-11-26 18:35:32.897	HEALTHY	cmi7psk260007dvrssgha1kf9	2	\N	\N	\N
-cmigchprc000ldvs0thbcqyzy	BTC-008	cmi7qsqu7000xdvb4o1cq0o8b	4	SEXED	\N	cmi8097x70003dvrgx8idmqgm	2025-11-26 18:35:32.904	2025-11-26 18:35:32.904	HEALTHY	cmi7psk260007dvrssgha1kf9	7	4	0	\N
 cmigchpsb000pdvs0hfxjcq11	BTC-009	cmi7qsqu7000xdvb4o1cq0o8b	1	SEXED	\N	cmi8097x70003dvrgx8idmqgm	2025-11-26 18:35:32.939	2025-11-26 18:35:32.939	HEALTHY	cmi7psk260007dvrssgha1kf9	11	0	1	\N
 cmi808unt0001dvrgbjf5f8au	BTC-001	cmi7uusha000fdve45k44v400	10	ARCHIVED	\N	\N	2025-11-20 20:30:34.548	2026-01-06 22:20:46.947	HEALTHY	cmi7psk260007dvrssgha1kf9	12	\N	\N	\N
-cmk35lalh0003s6kht1ue88es	BTC-010	cmi7uusha000fdve45k44v400	4	SEXED	\N	cmi808unt0001dvrgbjf5f8au	2026-01-06 22:20:46.949	2026-01-06 22:20:46.949	HEALTHY	cmi7psk260007dvrssgha1kf9	10	4	0	\N
-cmk35lalp0007s6kh383wu6yq	BTC-011	cmi7uusha000fdve45k44v400	3	SEXED	\N	cmi808unt0001dvrgbjf5f8au	2026-01-06 22:20:46.957	2026-01-06 22:20:46.957	HEALTHY	cmi7psk260007dvrssgha1kf9	12	0	3	\N
+cmigcfzib000ddvs0h5fktnzw	BTC-006	cmi7qnfss000pdvb4pjpzux6i	0	SEXED	\N	cmi80v2h50005dvrg0toij07z	2025-11-26 18:34:12.227	2026-01-12 14:15:31.33	HEALTHY	cmi7psk260007dvrssgha1kf9	10	0	0	\N
+cmigcfzjo000hdvs09zawzh0f	BTC-007	cmi7qnfss000pdvb4pjpzux6i	0	SEXED	\N	cmi80v2h50005dvrg0toij07z	2025-11-26 18:34:12.276	2026-01-12 14:15:31.361	HEALTHY	cmi7psk260007dvrssgha1kf9	11	0	0	\N
+cmk35lalh0003s6kht1ue88es	BTC-010	cmi7uusha000fdve45k44v400	3	SEXED	\N	cmi808unt0001dvrgbjf5f8au	2026-01-06 22:20:46.949	2026-01-12 14:15:31.37	HEALTHY	cmi7psk260007dvrssgha1kf9	10	3	0	\N
+cmk35lalp0007s6kh383wu6yq	BTC-011	cmi7uusha000fdve45k44v400	0	SEXED	\N	cmi808unt0001dvrgbjf5f8au	2026-01-06 22:20:46.957	2026-01-12 15:10:51.222	HEALTHY	cmi7psk260007dvrssgha1kf9	12	4	0	\N
+cmigchprc000ldvs0thbcqyzy	BTC-008	cmi7qsqu7000xdvb4o1cq0o8b	0	SEXED	\N	cmi8097x70003dvrgx8idmqgm	2025-11-26 18:35:32.904	2026-01-12 16:02:12.778	HEALTHY	cmi7psk260007dvrssgha1kf9	7	0	0	\N
+cmkgsnlvl0009dvd4er1i0nvr	BTC-012	cmkgsbo8s0003dvd4fd5qg4jo	6	ACTIVE		\N	2026-01-16 11:27:26.337	2026-01-16 11:27:26.337	HEALTHY	cmi7psk260007dvrssgha1kf9	8	\N	\N	\N
+cmkgsxdna000ddvd49289fesc	BTC-013	cmkgsemu80005dvd4x0l8b158	8	ACTIVE		\N	2026-01-16 11:35:02.23	2026-01-16 11:35:02.23	HEALTHY	cmi7psk260007dvrssgha1kf9	2	\N	\N	\N
+cmkgsxtrr000hdvd4ouueapnf	BTC-014	cmkgsb8xj0001dvd4qjxkl29r	7	ACTIVE		\N	2026-01-16 11:35:23.127	2026-01-16 11:35:23.127	HEALTHY	cmi7psk260007dvrssgha1kf9	5	\N	\N	\N
 \.
 
 
@@ -688,6 +702,9 @@ cmigchpt0000rdvs0jobbjltq	cmigchpsb000pdvs0hfxjcq11	HEALTHY	Created via sexing/s
 cmk35i8ni0001s6kha52yvl0a	cmi808unt0001dvrgbjf5f8au	HEALTHY	Status changed from INJURED to HEALTHY	2026-01-06 22:18:24.463
 cmk35lalo0005s6khx3psdbnr	cmk35lalh0003s6kht1ue88es	HEALTHY	Created via sexing/splitting from batch BTC-001. Original recorded count 10; current alive 7.	2026-01-06 22:20:46.956
 cmk35lalv0009s6khrhsl1sdm	cmk35lalp0007s6kh383wu6yq	HEALTHY	Created via sexing/splitting from batch BTC-001. Original recorded count 10; current alive 7.	2026-01-06 22:20:46.964
+cmkgsnlw7000bdvd4dwrn4zt5	cmkgsnlvl0009dvd4er1i0nvr	HEALTHY	Initial status	2026-01-16 11:27:26.359
+cmkgsxdof000fdvd4qu6hpmi7	cmkgsxdna000ddvd49289fesc	HEALTHY	Initial status	2026-01-16 11:35:02.272
+cmkgsxtsa000jdvd4m70vv52d	cmkgsxtrr000hdvd4ouueapnf	HEALTHY	Initial status	2026-01-16 11:35:23.147
 \.
 
 
@@ -716,7 +733,7 @@ COPY public."OffspringWeight" (id, "batchId", weight, "measurementDate", notes, 
 
 
 --
--- Data for Name: Rabbit; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: Rabbit; Type: TABLE DATA; Schema: public; Owner: rabbit_user
 --
 
 COPY public."Rabbit" (id, "rabbitId", name, gender, breed, "dateOfBirth", "cageId", status, "healthStatus", "healthDescription", color, "motherId", "fatherId", notes, "createdAt", "updatedAt", compartment) FROM stdin;
@@ -748,13 +765,16 @@ cmi7xat75000ddvuwthaichjy	cmi7prz7e0005dvrsptxfllf7	cmi7x9ymj0009dvuwqto0dsm5	wo
 
 
 --
--- Data for Name: Sale; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: Sale; Type: TABLE DATA; Schema: public; Owner: rabbit_user
 --
 
-COPY public."Sale" (id, "rabbitId", description, amount, "saleDate", "buyerName", "buyerContact", notes, "createdAt", "updatedAt") FROM stdin;
-cmi7u9lxr0004dve4k84vd20n	\N	Rabbit sale	30	2025-10-06 00:00:00	Baba Jay			2025-11-20 19:43:12.207	2025-11-20 19:43:12.207
-cmi7wwiqt0000dvuw3mpsr91q	\N	Meat Sale	40.5	2025-08-16 00:00:00	Reymeg			2025-11-20 20:57:00.387	2025-11-20 21:11:51.328
-cmin4uryd0000tgdd7x4oep6o	\N	Meat Sale	40.75	2025-12-01 00:00:00	Raymeg			2025-12-01 12:36:08.581	2025-12-01 12:36:08.581
+COPY public."Sale" (id, "rabbitId", description, amount, "saleDate", "buyerName", "buyerContact", notes, "createdAt", "updatedAt", "batchId", "quantitySold") FROM stdin;
+cmi7u9lxr0004dve4k84vd20n	\N	Rabbit sale	30	2025-10-06 00:00:00	Baba Jay			2025-11-20 19:43:12.207	2025-11-20 19:43:12.207	\N	1
+cmi7wwiqt0000dvuw3mpsr91q	\N	Meat Sale	40.5	2025-08-16 00:00:00	Reymeg			2025-11-20 20:57:00.387	2025-11-20 21:11:51.328	\N	1
+cmin4uryd0000tgdd7x4oep6o	\N	Meat Sale	40.75	2025-12-01 00:00:00	Raymeg			2025-12-01 12:36:08.581	2025-12-01 12:36:08.581	\N	1
+cmkb7uee50003dvjob8aoip5u	\N	Meat sale	20	2026-01-09 00:00:00	Raymeg			2026-01-12 13:46:00.337	2026-01-12 13:46:00.337	cmigcfzjo000hdvs09zawzh0f	4
+cmkb7s8rg0001dvjow6ggr2ax	\N	Meat sale	28	2026-01-09 00:00:00	Raymeg			2026-01-12 13:44:19.801	2026-01-12 14:01:50.602	cmigcfzib000ddvs0h5fktnzw	5
+cmkbat9wx0001dvwow9t547n7	\N	Meat sale (corrected - all 4 sold)	19	2026-01-09 00:00:00	Corrected Sale		Updated to include the remaining rabbit	2026-01-12 15:09:06.8	2026-01-12 17:17:22.763	cmigchprc000ldvs0thbcqyzy	4
 \.
 
 
@@ -802,10 +822,12 @@ cmi7qj5wc000jdvb4ivi6e9fe	cmi7qj5vs000hdvb40ggli70q	5	2025-11-20 17:58:39.514	\N
 --
 
 COPY public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) FROM stdin;
-9a75c661-4cd6-4d19-a6bf-29161dfc202e	c760d8bb841d1efa68b0a600c700a9ec1cf73e5bdce35264eda69c6af9718c12	2025-11-26 17:46:41.299792+00	20251126174640_sexing_module_fix	\N	\N	2025-11-26 17:46:40.917085+00	1
-9f1752eb-0952-4058-b0e0-e740eb2ef3e9	10c51d4cb0c384e5c21cdea41b07140adb4a30d2e5d123c2760b5eb9604902e2	2026-01-06 22:02:14.974879+00	20260106164956_add_debtors_creditors	\N	\N	2026-01-06 22:02:14.94988+00	1
-c6bd799d-dc04-4d2a-9a6d-a0e56a07c6b0	8ce572d49b1141b10e2b9b585deeaeb420a987cffbbef1f739f7d39cab025816	2026-01-06 22:02:14.981487+00	20260106170410_add_notifications	\N	\N	2026-01-06 22:02:14.975398+00	1
-5ad1186c-bf6f-4e48-bfdf-5b7e63e722f8	36e8984895095d1248af20af84ab74db0b78f9726b41b8a8156a5297aa404757	\N	20260110223310_add_batch_sales	A migration failed to apply. New migrations cannot be applied before the error is recovered from. Read more about how to resolve migration issues in a production database: https://pris.ly/d/migrate-resolve\n\nMigration name: 20260110223310_add_batch_sales\n\nDatabase error code: 42501\n\nDatabase error:\nERROR: must be owner of table Sale\n\nDbError { severity: "ERROR", parsed_severity: Some(Error), code: SqlState(E42501), message: "must be owner of table Sale", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: Some("aclchk.c"), line: Some(2950), routine: Some("aclcheck_error") }\n\n   0: sql_schema_connector::apply_migration::apply_script\n           with migration_name="20260110223310_add_batch_sales"\n             at schema-engine/connectors/sql-schema-connector/src/apply_migration.rs:113\n   1: schema_commands::commands::apply_migrations::Applying migration\n           with migration_name="20260110223310_add_batch_sales"\n             at schema-engine/commands/src/commands/apply_migrations.rs:95\n   2: schema_core::state::ApplyMigrations\n             at schema-engine/core/src/state.rs:260	2026-01-12 00:49:35.248299+00	2026-01-12 00:16:46.180016+00	0
+9a75c661-4cd6-4d19-a6bf-29161dfc202e	c760d8bb841d1efa68b0a600c700a9ec1cf73e5bdce35264eda69c6af9718c12	2025-11-26 19:46:41.299792+02	20251126174640_sexing_module_fix	\N	\N	2025-11-26 19:46:40.917085+02	1
+9f1752eb-0952-4058-b0e0-e740eb2ef3e9	10c51d4cb0c384e5c21cdea41b07140adb4a30d2e5d123c2760b5eb9604902e2	2026-01-07 00:02:14.974879+02	20260106164956_add_debtors_creditors	\N	\N	2026-01-07 00:02:14.94988+02	1
+c6bd799d-dc04-4d2a-9a6d-a0e56a07c6b0	8ce572d49b1141b10e2b9b585deeaeb420a987cffbbef1f739f7d39cab025816	2026-01-07 00:02:14.981487+02	20260106170410_add_notifications	\N	\N	2026-01-07 00:02:14.975398+02	1
+5ad1186c-bf6f-4e48-bfdf-5b7e63e722f8	36e8984895095d1248af20af84ab74db0b78f9726b41b8a8156a5297aa404757	\N	20260110223310_add_batch_sales	A migration failed to apply. New migrations cannot be applied before the error is recovered from. Read more about how to resolve migration issues in a production database: https://pris.ly/d/migrate-resolve\n\nMigration name: 20260110223310_add_batch_sales\n\nDatabase error code: 42501\n\nDatabase error:\nERROR: must be owner of table Sale\n\nDbError { severity: "ERROR", parsed_severity: Some(Error), code: SqlState(E42501), message: "must be owner of table Sale", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: Some("aclchk.c"), line: Some(2950), routine: Some("aclcheck_error") }\n\n   0: sql_schema_connector::apply_migration::apply_script\n           with migration_name="20260110223310_add_batch_sales"\n             at schema-engine/connectors/sql-schema-connector/src/apply_migration.rs:113\n   1: schema_commands::commands::apply_migrations::Applying migration\n           with migration_name="20260110223310_add_batch_sales"\n             at schema-engine/commands/src/commands/apply_migrations.rs:95\n   2: schema_core::state::ApplyMigrations\n             at schema-engine/core/src/state.rs:260	2026-01-12 02:49:35.248299+02	2026-01-12 02:16:46.180016+02	0
+8f4ba203-9033-44da-a2e2-c0b8651e226a	36e8984895095d1248af20af84ab74db0b78f9726b41b8a8156a5297aa404757	\N	20260110223310_add_batch_sales	A migration failed to apply. New migrations cannot be applied before the error is recovered from. Read more about how to resolve migration issues in a production database: https://pris.ly/d/migrate-resolve\n\nMigration name: 20260110223310_add_batch_sales\n\nDatabase error code: 42501\n\nDatabase error:\nERROR: must be owner of table Sale\n\nDbError { severity: "ERROR", parsed_severity: Some(Error), code: SqlState(E42501), message: "must be owner of table Sale", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: Some("aclchk.c"), line: Some(3795), routine: Some("aclcheck_error") }\n\n   0: sql_schema_connector::apply_migration::apply_script\n           with migration_name="20260110223310_add_batch_sales"\n             at schema-engine\\connectors\\sql-schema-connector\\src\\apply_migration.rs:113\n   1: schema_commands::commands::apply_migrations::Applying migration\n           with migration_name="20260110223310_add_batch_sales"\n             at schema-engine\\commands\\src\\commands\\apply_migrations.rs:95\n   2: schema_core::state::ApplyMigrations\n             at schema-engine\\core\\src\\state.rs:260	2026-01-12 15:13:18.161968+02	2026-01-12 15:07:02.145381+02	0
+65e9da0b-c7ba-40f4-877d-63897bdb8727	36e8984895095d1248af20af84ab74db0b78f9726b41b8a8156a5297aa404757	2026-01-12 15:13:18.165325+02	20260110223310_add_batch_sales		\N	2026-01-12 15:13:18.165325+02	0
 \.
 
 
@@ -858,7 +880,7 @@ ALTER TABLE ONLY public."Debtor"
 
 
 --
--- Name: Expense Expense_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: Expense Expense_pkey; Type: CONSTRAINT; Schema: public; Owner: rabbit_user
 --
 
 ALTER TABLE ONLY public."Expense"
@@ -898,7 +920,7 @@ ALTER TABLE ONLY public."OffspringBatchHealthHistory"
 
 
 --
--- Name: OffspringBatch OffspringBatch_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: OffspringBatch OffspringBatch_pkey; Type: CONSTRAINT; Schema: public; Owner: rabbit_user
 --
 
 ALTER TABLE ONLY public."OffspringBatch"
@@ -922,7 +944,7 @@ ALTER TABLE ONLY public."OffspringWeight"
 
 
 --
--- Name: Rabbit Rabbit_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: Rabbit Rabbit_pkey; Type: CONSTRAINT; Schema: public; Owner: rabbit_user
 --
 
 ALTER TABLE ONLY public."Rabbit"
@@ -946,7 +968,7 @@ ALTER TABLE ONLY public."Rabbitry"
 
 
 --
--- Name: Sale Sale_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: Sale Sale_pkey; Type: CONSTRAINT; Schema: public; Owner: rabbit_user
 --
 
 ALTER TABLE ONLY public."Sale"
@@ -1000,14 +1022,14 @@ CREATE UNIQUE INDEX "Cage_cageId_key" ON public."Cage" USING btree ("cageId");
 
 
 --
--- Name: OffspringBatch_batchId_key; Type: INDEX; Schema: public; Owner: postgres
+-- Name: OffspringBatch_batchId_key; Type: INDEX; Schema: public; Owner: rabbit_user
 --
 
 CREATE UNIQUE INDEX "OffspringBatch_batchId_key" ON public."OffspringBatch" USING btree ("batchId");
 
 
 --
--- Name: Rabbit_rabbitId_key; Type: INDEX; Schema: public; Owner: postgres
+-- Name: Rabbit_rabbitId_key; Type: INDEX; Schema: public; Owner: rabbit_user
 --
 
 CREATE UNIQUE INDEX "Rabbit_rabbitId_key" ON public."Rabbit" USING btree ("rabbitId");
@@ -1113,7 +1135,7 @@ ALTER TABLE ONLY public."OffspringBatchHealthHistory"
 
 
 --
--- Name: OffspringBatch OffspringBatch_birthId_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: OffspringBatch OffspringBatch_birthId_fkey; Type: FK CONSTRAINT; Schema: public; Owner: rabbit_user
 --
 
 ALTER TABLE ONLY public."OffspringBatch"
@@ -1137,7 +1159,7 @@ ALTER TABLE ONLY public."OffspringWeight"
 
 
 --
--- Name: Rabbit Rabbit_cageId_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: Rabbit Rabbit_cageId_fkey; Type: FK CONSTRAINT; Schema: public; Owner: rabbit_user
 --
 
 ALTER TABLE ONLY public."Rabbit"
@@ -1145,7 +1167,7 @@ ALTER TABLE ONLY public."Rabbit"
 
 
 --
--- Name: Rabbit Rabbit_fatherId_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: Rabbit Rabbit_fatherId_fkey; Type: FK CONSTRAINT; Schema: public; Owner: rabbit_user
 --
 
 ALTER TABLE ONLY public."Rabbit"
@@ -1153,7 +1175,7 @@ ALTER TABLE ONLY public."Rabbit"
 
 
 --
--- Name: Rabbit Rabbit_motherId_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: Rabbit Rabbit_motherId_fkey; Type: FK CONSTRAINT; Schema: public; Owner: rabbit_user
 --
 
 ALTER TABLE ONLY public."Rabbit"
@@ -1193,7 +1215,15 @@ ALTER TABLE ONLY public."Rabbitry"
 
 
 --
--- Name: Sale Sale_rabbitId_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: Sale Sale_batchId_fkey; Type: FK CONSTRAINT; Schema: public; Owner: rabbit_user
+--
+
+ALTER TABLE ONLY public."Sale"
+    ADD CONSTRAINT "Sale_batchId_fkey" FOREIGN KEY ("batchId") REFERENCES public."OffspringBatch"(id) ON UPDATE CASCADE ON DELETE SET NULL;
+
+
+--
+-- Name: Sale Sale_rabbitId_fkey; Type: FK CONSTRAINT; Schema: public; Owner: rabbit_user
 --
 
 ALTER TABLE ONLY public."Sale"
@@ -1217,7 +1247,7 @@ ALTER TABLE ONLY public."WeightMeasurement"
 
 
 --
--- Name: OffspringBatch fk_cage; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: OffspringBatch fk_cage; Type: FK CONSTRAINT; Schema: public; Owner: rabbit_user
 --
 
 ALTER TABLE ONLY public."OffspringBatch"
@@ -1260,13 +1290,6 @@ GRANT ALL ON TABLE public."Death" TO rabbit_user;
 
 
 --
--- Name: TABLE "Expense"; Type: ACL; Schema: public; Owner: postgres
---
-
-GRANT ALL ON TABLE public."Expense" TO rabbit_user;
-
-
---
 -- Name: TABLE "Location"; Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -1278,13 +1301,6 @@ GRANT ALL ON TABLE public."Location" TO rabbit_user;
 --
 
 GRANT ALL ON TABLE public."Mating" TO rabbit_user;
-
-
---
--- Name: TABLE "OffspringBatch"; Type: ACL; Schema: public; Owner: postgres
---
-
-GRANT ALL ON TABLE public."OffspringBatch" TO rabbit_user;
 
 
 --
@@ -1309,13 +1325,6 @@ GRANT ALL ON TABLE public."OffspringWeight" TO rabbit_user;
 
 
 --
--- Name: TABLE "Rabbit"; Type: ACL; Schema: public; Owner: postgres
---
-
-GRANT ALL ON TABLE public."Rabbit" TO rabbit_user;
-
-
---
 -- Name: TABLE "Rabbitry"; Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -1327,13 +1336,6 @@ GRANT ALL ON TABLE public."Rabbitry" TO rabbit_user;
 --
 
 GRANT ALL ON TABLE public."RabbitryWorker" TO rabbit_user;
-
-
---
--- Name: TABLE "Sale"; Type: ACL; Schema: public; Owner: postgres
---
-
-GRANT ALL ON TABLE public."Sale" TO rabbit_user;
 
 
 --
@@ -1375,26 +1377,26 @@ GRANT ALL ON TABLE public._prisma_migrations TO rabbit_user;
 -- Name: DEFAULT PRIVILEGES FOR SEQUENCES; Type: DEFAULT ACL; Schema: public; Owner: postgres
 --
 
-ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON SEQUENCES TO rabbit_user;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON SEQUENCES  TO rabbit_user;
 
 
 --
 -- Name: DEFAULT PRIVILEGES FOR FUNCTIONS; Type: DEFAULT ACL; Schema: public; Owner: postgres
 --
 
-ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON FUNCTIONS TO rabbit_user;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON FUNCTIONS  TO rabbit_user;
 
 
 --
 -- Name: DEFAULT PRIVILEGES FOR TABLES; Type: DEFAULT ACL; Schema: public; Owner: postgres
 --
 
-ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON TABLES TO rabbit_user;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON TABLES  TO rabbit_user;
 
 
 --
 -- PostgreSQL database dump complete
 --
 
-\unrestrict h8ntP9x24O8BM2veZxdf9nWgt0lHu9EdTXZfGfYQKOQIEBKsI9of6tgk3CUc0Pn
+\unrestrict P6i8rkf34twEfHbqfldB986R3iLIPYx2EEbNczBDLS5aSeXe486NCunK3EGjcQ2
 
