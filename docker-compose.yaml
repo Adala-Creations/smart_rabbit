@@ -1,11 +1,8 @@
-version: "3.9"
-
+version: "3.8"
 services:
-  smart_rabbit:
-    image: smart_rabbit-smart-rabbit
+  app:
     build: .
     ports:
       - "3005:3005"
     environment:
-      - NODE_ENV=production
-    restart: always
+      NODE_ENV: production

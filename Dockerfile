@@ -1,35 +1,26 @@
-# Base image
+# 1️⃣ Use Node 20 Alpine for smaller image
 FROM node:20-alpine
 
-# Create non-root user
-RUN addgroup -S app && adduser -S app -G app
-
-# Set working directory
+# 2️⃣ Set working directory
 WORKDIR /app
 
-# Copy package.json first for caching
+# 3️⃣ Copy package files and install dependencies
 COPY package*.json ./
-
-# Install dependencies
 RUN npm ci
 
-# Copy source code
+# 4️⃣ Copy the rest of the app
 COPY . .
 
-# Give ownership to non-root user
-RUN chown -R app:app /app
+# 5️⃣ Build the Next.js app
+RUN npm run build
 
-# Switch to non-root user
-USER app
+# 6️⃣ Ensure permissions (optional, if using non-root user)
+# RUN addgroup -S app && adduser -S app -G app
+# RUN chown -R app:app /app
+# USER app
 
-# Set environment variable to ignore TS errors
-ENV NEXT_PUBLIC_SKIP_TS_CHECK=true
-
-# Build the Next.js app (ignores TS strictness)
-RUN npm run build || echo "Build completed with ignored TS errors"
-
-# Expose port
+# 7️⃣ Expose the port Next.js will run on
 EXPOSE 3005
 
-# Start app with PM2
-CMD ["pm2-runtime", "ecosystem.config.js"]
+# 8️⃣ Start the app directly (production)
+CMD ["npm", "run", "start"]
