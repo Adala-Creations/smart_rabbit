@@ -1,12 +1,11 @@
 version: "3.9"
 
 services:
-  smart-rabbit:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: smart_rabbit:latest
-    container_name: smart-rabbit
+  smart_rabbit:
+    image: smart_rabbit-smart-rabbit
+    build: .
     ports:
       - "3005:3005"
-    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+    restart: always

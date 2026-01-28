@@ -2,10 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
-  
-  // ✅ Ignore TypeScript errors during production builds
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: process.env.NEXT_PUBLIC_SKIP_TS_CHECK === "true",
   },
 };
 
