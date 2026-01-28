@@ -6,15 +6,15 @@ Follow these steps to get your Smart Rabbit farm management system up and runnin
 
 ### Step 1: Environment Setup
 
-1. Copy the example environment file:
+1. Copy the local environment file:
    ```bash
-   cp .env.example .env
+   cp .env.local .env
    ```
 
 2. Edit `.env` and configure:
    - `DATABASE_URL`: Your PostgreSQL connection string
    - `NEXTAUTH_SECRET`: Generate with `openssl rand -base64 32`
-   - `NEXTAUTH_URL`: Keep as `http://localhost:3000` for development
+   - `NEXTAUTH_URL`: Keep as `http://localhost:3005` for development
 
 ### Step 2: Database Setup
 
@@ -42,7 +42,7 @@ Follow these steps to get your Smart Rabbit farm management system up and runnin
    npm run dev
    ```
 
-2. Open your browser to: http://localhost:3000
+2. Open your browser to: http://localhost:3005
 
 3. Click "Get Started" to create your account
 
@@ -82,9 +82,9 @@ If you see "Can't reach database server":
 
 ### Port Already in Use
 
-If port 3000 is busy:
+If port 3005 is busy:
 ```bash
-npm run dev -- -p 3005
+npm run dev -- -p 3006
 ```
 
 ### Authentication Issues

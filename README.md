@@ -78,7 +78,7 @@ A comprehensive rabbit farm management system built with Next.js, TypeScript, an
 2. **Set up environment variables**:
    Create a `.env` file in the root directory:
    ```bash
-   cp .env.example .env
+   cp .env.local .env
    ```
 
 3. **Configure your database**:
