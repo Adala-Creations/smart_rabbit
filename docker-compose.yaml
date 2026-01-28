@@ -4,12 +4,12 @@ services:
     container_name: smart-rabbit
     restart: unless-stopped
     ports:
-      - "127.0.0.1:3005:3005"  # only accessible via Nginx
+      - "127.0.0.1:3005:3005"  # internal only, Nginx handles public SSL
     env_file:
       - .env
     deploy:
       resources:
         limits:
-          memory: 512M          # cap memory to prevent OOM
+          memory: 512M
         reservations:
           memory: 256M
