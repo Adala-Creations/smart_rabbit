@@ -1,15 +1,12 @@
+version: "3.9"
+
 services:
   smart-rabbit:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: smart_rabbit:latest
     container_name: smart-rabbit
-    restart: unless-stopped
     ports:
-      - "127.0.0.1:3005:3005"  # internal only, Nginx handles public SSL
-    env_file:
-      - .env
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-        reservations:
-          memory: 256M
+      - "3005:3005"
+    restart: unless-stopped
