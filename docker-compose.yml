@@ -6,7 +6,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: rabbit_user
-      POSTGRES_PASSWORD: 'RabbitU$3r'
+      POSTGRES_PASSWORD: "RabbitU$$3r"  # <- escape $
       POSTGRES_DB: smart_rabbit
     volumes:
       - db-data:/var/lib/postgresql/data
