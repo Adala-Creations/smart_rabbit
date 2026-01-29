@@ -6,7 +6,7 @@ services:
     container_name: smart-rabbit
     restart: unless-stopped
     ports:
-      - "127.0.0.1:3005:3005"
+      - "3005:3005"
     env_file:
       - .env
     deploy:
