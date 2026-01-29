@@ -2,15 +2,17 @@ version: "3.8"
 
 services:
   db:
-    image: postgres:15-alpine
-    container_name: smart_rabbit_db
+    image: postgres:14
+    container_name: smart-rabbit-db
     restart: unless-stopped
-    env_file:
-      - .env
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: rabbit_user
+      POSTGRES_PASSWORD: RabbitU%243r   # Note: $ is URL-encoded in DATABASE_URL
+      POSTGRES_DB: smart_rabbit
     ports:
-      - "5433:5432"
+      - "5433:5432"   # Host port 5433 → Container port 5432
+    volumes:
+      - db-data:/var/lib/postgresql/data
 
   app:
     build: .
@@ -18,10 +20,16 @@ services:
     restart: unless-stopped
     env_file:
       - .env
-    depends_on:
-      - db
     ports:
       - "3005:3005"
+    depends_on:
+      - db
+    networks:
+      - default
 
 volumes:
-  postgres_data:
+  db-data:
+
+networks:
+  default:
+    name: smart_rabbit_default
