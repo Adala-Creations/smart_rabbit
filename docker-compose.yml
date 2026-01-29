@@ -7,7 +7,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: rabbit_user
-      POSTGRES_PASSWORD: 'RabbitU$3r'   # Note: $ is URL-encoded in DATABASE_URL
+      POSTGRES_PASSWORD: 'RabbitU\$3r'   # Note: $ is URL-encoded in DATABASE_URL
       POSTGRES_DB: smart_rabbit
     ports:
       - "5433:5432"   # Host port 5433 → Container port 5432
