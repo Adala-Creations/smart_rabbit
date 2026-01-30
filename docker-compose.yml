@@ -8,13 +8,14 @@ services:
     env_file:
       - .env
     ports:
-      - "5433:5432" # host:container
+      - "5433:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
 
   app:
     build: .
     container_name: smart-rabbit
+    init: true
     restart: unless-stopped
     env_file:
       - .env
@@ -24,6 +25,7 @@ services:
       - db
     networks:
       - default
+    cpus: "1.0"
 
 volumes:
   db-data:
