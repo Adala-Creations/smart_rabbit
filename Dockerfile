@@ -3,7 +3,6 @@
 # ==============================
 FROM node:20-alpine AS builder
 
-# Set working directory
 WORKDIR /app
 
 # Install bash and git (needed for some npm packages)
@@ -15,11 +14,15 @@ COPY package*.json ./
 # Install all dependencies (including devDependencies)
 RUN npm ci
 
-# Copy source code
+# Copy the rest of the app
 COPY . .
 
-# Build Next.js app (produces .next)
+# Generate Prisma client
+RUN npx prisma generate
+
+# Build Next.js app
 RUN npm run build
+
 
 # ==============================
 # Production stage
