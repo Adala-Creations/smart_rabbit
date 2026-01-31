@@ -11,8 +11,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - smart_rabbit_data:/var/lib/postgresql/data
-    ports:
-      - "5433:5432"  # Mapping host 5433 -> container 5432
+    networks:
+      - smart_rabbit_net
 
   app:
     build:
@@ -22,10 +22,29 @@ services:
     restart: always
     env_file:
       - .env
-    ports:
-      - "3005:3005"
     depends_on:
       - db
+    networks:
+      - smart_rabbit_net
+
+  nginx:
+    image: nginx:latest
+    container_name: smart-rabbit-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      - app
+    networks:
+      - smart_rabbit_net
 
 volumes:
   smart_rabbit_data:
+
+networks:
+  smart_rabbit_net:
+    driver: bridge
