@@ -15,17 +15,14 @@ services:
       - "5432:5432"
 
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: smart-rabbit-app
-    restart: always
-    env_file:
-      - .env   # <-- ensures DATABASE_URL and other env vars are available inside container
-    ports:
-      - "3005:3005"
-    depends_on:
-      - db
-
-volumes:
-  smart_rabbit_data:
+  build:
+    context: .
+    dockerfile: Dockerfile
+  container_name: smart-rabbit-app
+  restart: always
+  env_file:
+    - .env
+  ports:
+    - "3005:3005"
+  depends_on:
+    - db
