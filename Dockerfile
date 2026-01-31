@@ -1,48 +1,54 @@
 # ==============================
-# Builder stage (builds Next.js app)
+# Builder stage
 # ==============================
 FROM node:20-alpine AS builder
 
-WORKDIR /app
-
-# Install bash and git (needed for some npm packages)
+# Install bash & git (needed for Prisma & dev scripts)
 RUN apk add --no-cache bash git
 
-# Copy package files
-COPY package*.json ./
+# Set working directory
+WORKDIR /app
 
-# Install all dependencies (including devDependencies)
+# Copy package files and install dependencies
+COPY package*.json ./
 RUN npm ci
 
-# Copy the rest of the app
+# Copy everything else
 COPY . .
 
 # Generate Prisma client
 RUN npx prisma generate
 
-# Build Next.js app
+# Build Next.js app (produces .next)
 RUN npm run build
-
 
 # ==============================
 # Production stage
 # ==============================
-FROM node:20-alpine
+FROM node:20-alpine AS runner
 
 WORKDIR /app
 
-# Install only production dependencies
+# Copy only production dependencies
 COPY package*.json ./
 RUN npm ci --production
 
-# Copy Next.js build output from builder
+# Copy build output and public files from builder
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/next.config.js ./
-COPY --from=builder /app/package.json ./
+
+# Copy next.config.ts (Next.js reads this automatically)
+COPY --from=builder /app/next.config.ts ./
+
+# Copy Prisma client and schema if needed at runtime
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+
+# Set environment variables (optional: you can load via .env)
+# ENV NODE_ENV=production
 
 # Expose port
 EXPOSE 3005
 
-# Start the production server
+# Start the app
 CMD ["npm", "start"]
