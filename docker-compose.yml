@@ -12,17 +12,20 @@ services:
     volumes:
       - smart_rabbit_data:/var/lib/postgresql/data
     ports:
-      - "5433:5432"
+      - "5433:5432"  # Mapping host 5433 -> container 5432
 
   app:
-  build:
-    context: .
-    dockerfile: Dockerfile
-  container_name: smart-rabbit-app
-  restart: always
-  env_file:
-    - .env
-  ports:
-    - "3005:3005"
-  depends_on:
-    - db
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: smart-rabbit-app
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "3005:3005"
+    depends_on:
+      - db
+
+volumes:
+  smart_rabbit_data:
