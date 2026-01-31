@@ -27,7 +27,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3005
-      DATABASE_URL: postgresql://rabbit_user:RabbitU$3r@db:5432/smart_rabbit?schema=public
+      DATABASE_URL: "postgresql://rabbit_user:RabbitU$3r@db:5432/smart_rabbit?schema=public"
       NEXTAUTH_URL: https://smart-rabbit.adalacreations.com
       NEXTAUTH_SECRET: t6+S1cnv5usrWbv0nX2xV4rAlAuhdclC02HKHHG3nqo=
       REGISTRATION_KEY: RabbitFarm3r2025
