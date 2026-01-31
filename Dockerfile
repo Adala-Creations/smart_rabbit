@@ -40,5 +40,8 @@ ENV PORT=3005
 # 1️⃣1️⃣ Expose the port
 EXPOSE 3005
 
-# 1️⃣2️⃣ Default command (Next.js production)
+# 1️⃣2️⃣ Run build
+RUN npm run build
+
+# 1️⃣3️⃣ Start the application
 CMD ["npm", "run", "start"]
