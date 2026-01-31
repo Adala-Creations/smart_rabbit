@@ -5,11 +5,11 @@ services:
     image: postgres:14
     container_name: smart-rabbit-db
     ports:
-      - "5433:5432"
+      - "5433:5432"      # host:container
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: rabbit_user
+      POSTGRES_PASSWORD: RabbitU$3r
+      POSTGRES_DB: smart_rabbit
     volumes:
       - db_data:/var/lib/postgresql/data
     networks:
@@ -23,15 +23,17 @@ services:
     depends_on:
       - db
     ports:
-      - "3005:3000"
-    env_file:
-      - .env
-    volumes:
-      - ./smart_rabbit:/app:rw
+      - "3005:3005"
+    environment:
+      NODE_ENV: production
+      PORT: 3005
+      DATABASE_URL: postgresql://rabbit_user:RabbitU$3r@db:5432/smart_rabbit?schema=public
+      NEXTAUTH_URL: https://smart-rabbit.adalacreations.com
+      NEXTAUTH_SECRET: t6+S1cnv5usrWbv0nX2xV4rAlAuhdclC02HKHHG3nqo=
+      REGISTRATION_KEY: RabbitFarm3r2025
     networks:
       - smart_rabbit_net
     restart: unless-stopped
-    command: sh -c "npx prisma generate && npx prisma migrate deploy && npm run start"
 
 networks:
   smart_rabbit_net:
