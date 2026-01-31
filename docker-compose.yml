@@ -2,44 +2,26 @@ version: "3.9"
 
 services:
   db:
-    image: postgres:14
+    image: postgres:16-alpine
     container_name: smart-rabbit-db
-    ports:
-      - "5433:5432"      # host:container
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5433:5432"
     volumes:
-      - db_data:/var/lib/postgresql/data
-    networks:
-      - smart_rabbit_net
+      - smart-rabbit-db-data:/var/lib/postgresql/data
 
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
     container_name: smart-rabbit-app
+    ports:
+      - "3005:3005"
     depends_on:
       - db
-    ports:
-      - "3005:3005"   # host:container, matches Next.js PORT
     environment:
       NODE_ENV: production
-      PORT: 3005
-      DATABASE_URL: postgresql://rabbit_user:RabbitU%243r@db:5432/smart_rabbit?schema=public
-      NEXTAUTH_URL: https://smart-rabbit.adalacreations.com
-      NEXTAUTH_SECRET: t6+S1cnv5usrWbv0nX2xV4rAlAuhdclC02HKHHG3nqo=
-      REGISTRATION_KEY: RabbitFarm3r2025
-    #volumes:
-    # - ./smart_rabbit:/app:rw
-    networks:
-      - smart_rabbit_net
-    restart: unless-stopped
-
-networks:
-  smart_rabbit_net:
-    driver: bridge
 
 volumes:
-  db_data:
+  smart-rabbit-db-data:

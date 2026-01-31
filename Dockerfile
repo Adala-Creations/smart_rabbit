@@ -1,47 +1,45 @@
 # ==============================
-# Smart Rabbit - Production Dockerfile
+# Builder stage (builds Next.js app)
 # ==============================
+FROM node:20-alpine AS builder
 
-# 1️⃣ Base image
-FROM node:20-bullseye-slim
-
-# 2️⃣ Install dependencies
-RUN apt-get update -y && \
-    apt-get install -y openssl libssl-dev git curl && \
-    rm -rf /var/lib/apt/lists/*
-
-# 3️⃣ Create non-root user
-RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
-
-# 4️⃣ Set working directory
+# Set working directory
 WORKDIR /app
 
-# 5️⃣ Copy package.json & package-lock.json first (Docker cache optimization)
+# Install bash and git (needed for some npm packages)
+RUN apk add --no-cache bash git
+
+# Copy package files
 COPY package*.json ./
 
-# 6️⃣ Install dependencies
-RUN npm ci --production
+# Install all dependencies (including devDependencies)
+RUN npm ci
 
-# 7️⃣ Copy rest of app
+# Copy source code
 COPY . .
 
-# 8️⃣ Prisma generate
-RUN npx prisma generate
-
-# 9️⃣ Set ownership to non-root user
-RUN chown -R appuser:appgroup /app
-
-# 🔹 Switch to non-root user
-USER appuser
-
-# 1️⃣0️⃣ Set environment variable for Next.js port
-ENV PORT=3005
-
-# 1️⃣1️⃣ Expose the port
-EXPOSE 3005
-
-# 1️⃣2️⃣ Run build
+# Build Next.js app (produces .next)
 RUN npm run build
 
-# 1️⃣3️⃣ Start the application
-CMD ["npm", "run", "start"]
+# ==============================
+# Production stage
+# ==============================
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install only production dependencies
+COPY package*.json ./
+RUN npm ci --production
+
+# Copy Next.js build output from builder
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/next.config.js ./
+COPY --from=builder /app/package.json ./
+
+# Expose port
+EXPOSE 3005
+
+# Start the production server
+CMD ["npm", "start"]
