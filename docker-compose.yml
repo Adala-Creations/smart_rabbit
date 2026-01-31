@@ -7,9 +7,9 @@ services:
     ports:
       - "5433:5432"      # host:container
     environment:
-      POSTGRES_USER: rabbit_user
-      POSTGRES_PASSWORD: RabbitU$3r
-      POSTGRES_DB: smart_rabbit
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - db_data:/var/lib/postgresql/data
     networks:
@@ -23,7 +23,7 @@ services:
     depends_on:
       - db
     ports:
-      - "3005:3005"
+      - "3005:3005"   # host:container, matches Next.js PORT
     environment:
       NODE_ENV: production
       PORT: 3005
@@ -31,6 +31,8 @@ services:
       NEXTAUTH_URL: https://smart-rabbit.adalacreations.com
       NEXTAUTH_SECRET: t6+S1cnv5usrWbv0nX2xV4rAlAuhdclC02HKHHG3nqo=
       REGISTRATION_KEY: RabbitFarm3r2025
+    volumes:
+      - ./smart_rabbit:/app:rw
     networks:
       - smart_rabbit_net
     restart: unless-stopped
