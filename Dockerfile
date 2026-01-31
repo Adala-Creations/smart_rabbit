@@ -3,23 +3,23 @@
 # ==============================
 FROM node:20-alpine AS builder
 
-# Install bash & git (needed for Prisma & dev scripts)
-RUN apk add --no-cache bash git
-
-# Set working directory
 WORKDIR /app
+
+# Install bash & git for Prisma generation
+RUN apk add --no-cache bash git
 
 # Copy package files and install dependencies
 COPY package*.json ./
 RUN npm ci
 
-# Copy everything else
+# Copy all app source code
 COPY . .
 
-# Generate Prisma client
+# Generate Prisma client (needs Postgres to be running)
+# You can pass DATABASE_URL as a build-arg or ensure it's set in .env
 RUN npx prisma generate
 
-# Build Next.js app (produces .next)
+# Build Next.js production app
 RUN npm run build
 
 # ==============================
@@ -29,25 +29,15 @@ FROM node:20-alpine AS runner
 
 WORKDIR /app
 
-# Copy only production dependencies
-COPY package*.json ./
-RUN npm ci --production
-
-# Copy build output and public files from builder
+# Copy built files from builder
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
-
-# Copy next.config.ts (Next.js reads this automatically)
-COPY --from=builder /app/next.config.ts ./
-
-# Copy Prisma client and schema if needed at runtime
+COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/next.config.ts ./next.config.ts
 
-# Set environment variables (optional: you can load via .env)
-# ENV NODE_ENV=production
-
-# Expose port
+# Expose the port your app runs on
 EXPOSE 3005
 
 # Start the app
