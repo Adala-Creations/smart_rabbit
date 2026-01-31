@@ -31,8 +31,8 @@ services:
       NEXTAUTH_URL: https://smart-rabbit.adalacreations.com
       NEXTAUTH_SECRET: t6+S1cnv5usrWbv0nX2xV4rAlAuhdclC02HKHHG3nqo=
       REGISTRATION_KEY: RabbitFarm3r2025
-    volumes:
-      - ./smart_rabbit:/app:rw
+    #volumes:
+    # - ./smart_rabbit:/app:rw
     networks:
       - smart_rabbit_net
     restart: unless-stopped
