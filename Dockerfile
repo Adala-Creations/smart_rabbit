@@ -1,43 +1,29 @@
 # ==============================
-# Builder stage
-# ==============================
-FROM node:20-alpine AS builder
-
-WORKDIR /app
-
-# Install bash & git for Prisma generation
-RUN apk add --no-cache bash git
-
-# Copy package files and install dependencies
-COPY package*.json ./
-RUN npm ci
-
-# Copy all app source code
-COPY . .
-
-# Generate Prisma client (needs Postgres to be running)
-# You can pass DATABASE_URL as a build-arg or ensure it's set in .env
-RUN npx prisma generate
-
-# Build Next.js production app
-RUN npm run build
-
-# ==============================
 # Production stage
 # ==============================
-FROM node:20-alpine AS runner
+FROM node:20-alpine
 
 WORKDIR /app
+
+# Install bash, curl, and locales
+RUN apk add --no-cache bash curl tzdata icu-libs
 
 # Copy built files from builder
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/next.config.ts ./next.config.ts
 
-# Expose the port your app runs on
+# Set environment variables to ensure Next.js binds correctly
+ENV PORT=3005
+ENV HOST=0.0.0.0
+ENV NODE_ENV=production
+ENV LANG=en_US.UTF-8
+ENV TZ=UTC
+
+# Expose port
 EXPOSE 3005
 
 # Start the app
