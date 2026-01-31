@@ -4,36 +4,38 @@ services:
   db:
     image: postgres:14
     container_name: smart-rabbit-db
-    restart: unless-stopped
-    env_file:
-      - .env
     ports:
-      - "5433:5432"        # Optional, remove if DB should be internal only
+      - "5433:5432"      # change host port if needed
+    environment:
+      POSTGRES_USER: rabbit_user
+      POSTGRES_PASSWORD: RabbitU$3r
+      POSTGRES_DB: smart_rabbit
     volumes:
       - db_data:/var/lib/postgresql/data
+    networks:
+      - smart_rabbit_net
 
   app:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: smart-rabbit-app
-    restart: unless-stopped
-    env_file:
-      - .env
-    ports:
-      - "3005:3000"        # Map internal 3000 to external 3005
     depends_on:
       - db
+    ports:
+      - "3005:3000"
+    env_file:
+      - .env
     volumes:
-      - ./:/app            # Optional: only needed if hot-reload / local dev
+      - ./smart_rabbit:/app:rw
     networks:
-      - smart_rabbit_default
-    entrypoint: ["/usr/local/bin/docker-entrypoint.sh"]
-    user: "1000:1000"      # Match non-root UID/GID
+      - smart_rabbit_net
+    restart: unless-stopped
 
 networks:
-  smart_rabbit_default:
+  smart_rabbit_net:
     driver: bridge
 
 volumes:
   db_data:
+

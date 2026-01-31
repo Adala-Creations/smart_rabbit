@@ -3,14 +3,14 @@
 # ==============================
 
 # 1️⃣ Base image
-FROM node:20-bullseye-slim AS build
+FROM node:20-bullseye-slim
 
 # 2️⃣ Install system dependencies
 RUN apt-get update -y && \
     apt-get install -y openssl libssl-dev git curl && \
     rm -rf /var/lib/apt/lists/*
 
-# 3️⃣ Create non-root app user
+# 3️⃣ Create non-root user
 RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
 
 # 4️⃣ Set working directory
@@ -26,7 +26,7 @@ COPY . .
 # 7️⃣ Generate Prisma client
 RUN npx prisma generate
 
-# 8️⃣ Fix permissions on /app
+# 8️⃣ Set ownership to non-root user
 RUN chown -R appuser:appgroup /app
 
 # 9️⃣ Switch to non-root user
@@ -34,6 +34,7 @@ USER appuser
 
 # 1️⃣0️⃣ Entrypoint for automatic Prisma migrations
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+# Make sure the script is executable on the host before build
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
 
 # 1️⃣1️⃣ Default command to start app
