@@ -34,7 +34,6 @@ USER appuser
 
 # 1️⃣0️⃣ Entrypoint for automatic Prisma migrations
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
-RUN chmod +x /app/docker-entrypoint.sh
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
 
 # 1️⃣1️⃣ Default command to start app
