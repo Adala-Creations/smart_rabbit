@@ -32,9 +32,9 @@ export async function GET(req: Request) {
                 doe: { include: { cage: true } },
               },
             },
-            offspringDeaths: true,
           },
         },
+        deaths: true,
         weights: { orderBy: { measurementDate: 'desc' } },
         healthHistory: { orderBy: { createdAt: 'desc' } },
         cage: true,
@@ -45,61 +45,23 @@ export async function GET(req: Request) {
       take: pageSize,
     });
 
-    // Adjust live counts by subtracting recorded offspring deaths per birth (oldest batches lose kits first)
-    const batchesByBirth: Record<string, any[]> = {};
-    offspring.forEach((batch) => {
-      const birthId = batch.birthId;
-      if (!batchesByBirth[birthId]) {
-        (batchesByBirth as any)[birthId] = [];
-      }
-      (batchesByBirth as any)[birthId].push(batch);
-    });
-    Object.values(batchesByBirth).forEach((list: any[]) =>
-      list.sort(
-        (a, b) =>
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-      ),
-    );
-
-    const adjustedCountByBatch: Record<string, number> = {};
-    Object.entries(batchesByBirth).forEach(([birthId, list]: [string, any[]]) => {
-      const totalDeaths =
-        list[0]?.birth?.offspringDeaths?.reduce(
-          (sum: number, od: any) => sum + (od.count || 0),
-          0,
-        ) || 0;
-      let remaining = totalDeaths;
-
-      list.forEach((batch) => {
-        if (remaining <= 0) {
-          adjustedCountByBatch[batch.id] = batch.count;
-          return;
-        }
-        const deathsForBatch = Math.min(remaining, batch.count);
-        adjustedCountByBatch[batch.id] = batch.count - deathsForBatch;
-        remaining -= deathsForBatch;
-      });
-    });
-
+    // Treat `batch.count` as the authoritative live kit count.
+    // Keep deceasedKits derived for reporting, but do not double-subtract deaths here.
     const decoratedOffspring = offspring.map((batch) => {
-      let availableCount: number;
+      const totalDeaths = batch.deaths?.reduce(
+        (sum: number, od: any) => sum + (od.count || 0),
+        0,
+      ) || 0;
 
-      if (batch.status === 'SEXED') {
-        // For sexed batches, available count is the sum of male and female counts
-        availableCount = (batch.maleCount || 0) + (batch.femaleCount || 0);
-      } else {
-        // For unsexed batches, use the adjusted count (original count minus deaths)
-        availableCount =
-          adjustedCountByBatch[batch.id] !== undefined
-            ? Math.max(0, adjustedCountByBatch[batch.id])
-            : batch.count;
-      }
+      const availableCount = batch.status === 'SEXED'
+        ? Math.max(0, (batch.maleCount || 0) + (batch.femaleCount || 0))
+        : Math.max(0, batch.availableCount ?? batch.count ?? 0);
 
       return {
         ...batch,
         originalCount: batch.count,
         availableCount,
-        deceasedKits: batch.status === 'SEXED' ? 0 : Math.max(0, batch.count - availableCount),
+        deceasedKits: totalDeaths,
       };
     });
 

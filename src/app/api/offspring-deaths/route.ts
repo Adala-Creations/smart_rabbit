@@ -13,12 +13,16 @@ export async function GET(request: NextRequest) {
 
     const offspringDeaths = await prisma.offspringDeath.findMany({
       include: {
-        birth: {
+        batch: {
           include: {
-            mating: {
+            birth: {
               include: {
-                buck: true,
-                doe: true,
+                mating: {
+                  include: {
+                    buck: true,
+                    doe: true,
+                  },
+                },
               },
             },
           },
@@ -30,7 +34,7 @@ export async function GET(request: NextRequest) {
     });
 
     const formatted = offspringDeaths.map((od) => {
-      const bd = od.birth?.birthDate;
+      const bd = od.batch?.birth?.birthDate;
       const dd = od.deathDate;
       let ageAtDeath = '-';
       try {
@@ -69,39 +73,50 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { birthId, deathDate, count, cause, notes } = await request.json();
+    const { batchId, deathDate, count, cause, notes } = await request.json();
 
     // Validate required fields
-    if (!birthId || !deathDate || !count) {
+    if (!batchId || !deathDate || !count) {
       return NextResponse.json(
-        { error: 'Birth, death date, and count are required' },
+        { error: 'Batch, death date, and count are required' },
         { status: 400 }
       );
     }
 
-    const offspringDeath = await prisma.offspringDeath.create({
-      data: {
-        birthId,
-        deathDate: new Date(deathDate),
-        count: parseInt(count),
-        cause,
-        notes,
-      },
-      include: {
-        birth: {
-          include: {
-            mating: {
-              include: {
-                buck: true,
-                doe: true,
-              },
+    // Create death record and atomically adjust the batch count so UI can rely on batch.count
+    const parsedCount = parseInt(count);
+    const result = await prisma.$transaction(async (tx) => {
+      const created = await tx.offspringDeath.create({
+        data: {
+          batchId,
+          deathDate: new Date(deathDate),
+          count: parsedCount,
+          cause,
+          notes,
+        },
+      });
+
+      const batch = await tx.offspringBatch.findUnique({ where: { id: batchId } });
+      if (batch) {
+        const newCount = Math.max(0, (batch.count || 0) - parsedCount);
+        await tx.offspringBatch.update({ where: { id: batchId }, data: { count: newCount } });
+      }
+
+      const included = await tx.offspringDeath.findUnique({
+        where: { id: created.id },
+        include: {
+          batch: {
+            include: {
+              birth: { include: { mating: { include: { buck: true, doe: true } } } },
             },
           },
         },
-      },
+      });
+
+      return included;
     });
 
-    return NextResponse.json(offspringDeath, { status: 201 });
+    return NextResponse.json(result, { status: 201 });
   } catch (error) {
     console.error('Error creating offspring death:', error);
     return NextResponse.json({ error: 'Failed to create offspring death record' }, { status: 500 });
@@ -116,36 +131,51 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id, birthId, deathDate, count, cause, notes } = await request.json();
+    const { id, batchId, deathDate, count, cause, notes } = await request.json();
 
     if (!id) {
       return NextResponse.json({ error: 'ID is required' }, { status: 400 });
     }
 
-    const offspringDeath = await prisma.offspringDeath.update({
-      where: { id },
-      data: {
-        ...(birthId && { birthId }),
-        ...(deathDate && { deathDate: new Date(deathDate) }),
-        ...(count && { count: parseInt(count) }),
-        ...(cause !== undefined && { cause }),
-        ...(notes !== undefined && { notes }),
-      },
-      include: {
-        birth: {
-          include: {
-            mating: {
-              include: {
-                buck: true,
-                doe: true,
-              },
-            },
-          },
+    // Update death and adjust the related batch count by the delta
+    const parsedCount = count !== undefined ? parseInt(count) : undefined;
+    const result = await prisma.$transaction(async (tx) => {
+      const existing = await tx.offspringDeath.findUnique({ where: { id } });
+      if (!existing) throw new Error('Offspring death record not found');
+
+      const updated = await tx.offspringDeath.update({
+        where: { id },
+        data: {
+          ...(batchId && { batchId }),
+          ...(deathDate && { deathDate: new Date(deathDate) }),
+          ...(parsedCount !== undefined && { count: parsedCount }),
+          ...(cause !== undefined && { cause }),
+          ...(notes !== undefined && { notes }),
         },
-      },
+      });
+
+      // If count changed, adjust the batch.count by the negative of the delta (we store live count in batch.count)
+      if (parsedCount !== undefined) {
+        const delta = parsedCount - existing.count; // positive if increased deaths
+        if (delta !== 0) {
+          // Find target batch (if batchId changed, use updated.batchId)
+          const targetBatchId = batchId || existing.batchId;
+          const batch = await tx.offspringBatch.findUnique({ where: { id: targetBatchId } });
+          if (batch) {
+            const newCount = Math.max(0, (batch.count || 0) - delta);
+            await tx.offspringBatch.update({ where: { id: targetBatchId }, data: { count: newCount } });
+          }
+        }
+      }
+
+      const included = await tx.offspringDeath.findUnique({
+        where: { id: updated.id },
+        include: { batch: { include: { birth: { include: { mating: { include: { buck: true, doe: true } } } } } } },
+      });
+      return included;
     });
 
-    return NextResponse.json(offspringDeath);
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Error updating offspring death:', error);
     return NextResponse.json({ error: 'Failed to update offspring death' }, { status: 500 });
@@ -167,8 +197,16 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'ID is required' }, { status: 400 });
     }
 
-    await prisma.offspringDeath.delete({
-      where: { id },
+    // Delete death record and restore batch.count by the deleted count
+    await prisma.$transaction(async (tx) => {
+      const existing = await tx.offspringDeath.findUnique({ where: { id } });
+      if (!existing) throw new Error('Offspring death record not found');
+      await tx.offspringDeath.delete({ where: { id } });
+      const batch = await tx.offspringBatch.findUnique({ where: { id: existing.batchId } });
+      if (batch) {
+        const newCount = (batch.count || 0) + (existing.count || 0);
+        await tx.offspringBatch.update({ where: { id: existing.batchId }, data: { count: newCount } });
+      }
     });
 
     return NextResponse.json({ message: 'Offspring death deleted successfully' });

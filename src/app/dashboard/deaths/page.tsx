@@ -2,13 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react';
 import useFetchWithLoading from '@/hooks/useFetchWithLoading';
+import { useDashboardRefresh } from '@/contexts/DashboardRefreshContext';
 import { useToast } from '@/components/ToastProvider';
 
 export default function DeathsPage() {
   const [deaths, setDeaths] = useState<any[]>([]);
   const [offspringDeaths, setOffspringDeaths] = useState<any[]>([]);
   const [rabbits, setRabbits] = useState<any[]>([]);
-  const [births, setBirths] = useState<any[]>([]);
+  const [batches, setBatches] = useState<any[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [showOffspringForm, setShowOffspringForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -17,6 +18,7 @@ export default function DeathsPage() {
   const [viewingOffspringDeath, setViewingOffspringDeath] = useState<any | null>(null);
   const toast = useToast();
   const fetchWithLoading = useFetchWithLoading();
+  const { refreshDashboard } = useDashboardRefresh();
   const parentFormRef = useRef<HTMLDivElement | null>(null);
   const offspringFormRef = useRef<HTMLDivElement | null>(null);
   const [formData, setFormData] = useState({
@@ -26,7 +28,7 @@ export default function DeathsPage() {
     notes: '',
   });
   const [offspringFormData, setOffspringFormData] = useState({
-    birthId: '',
+    batchId: '',
     deathDate: new Date().toISOString().split('T')[0],
     count: '1',
     cause: '',
@@ -79,17 +81,20 @@ export default function DeathsPage() {
 
   const fetchData = async () => {
     try {
-      const [deathsRes, offspringDeathsRes, rabbitsRes, birthsRes] = await Promise.all([
+      const [deathsRes, offspringDeathsRes, rabbitsRes, batchesRes] = await Promise.all([
         fetchWithLoading('/api/deaths'),
         fetchWithLoading('/api/offspring-deaths'),
         fetchWithLoading('/api/rabbits'),
-        fetchWithLoading('/api/births'),
+        fetchWithLoading('/api/offspring'),
       ]);
 
       setDeaths(await deathsRes.json());
       setOffspringDeaths(await offspringDeathsRes.json());
       setRabbits(await rabbitsRes.json());
-      setBirths(await birthsRes.json());
+      
+      const batchesData = await batchesRes.json();
+      // The offspring API returns { items, total, page, pageSize }
+      setBatches(batchesData.items || batchesData || []);
     } catch (error) {
       console.error('Error fetching data:', error);
     }
@@ -120,6 +125,7 @@ export default function DeathsPage() {
           notes: '',
         });
         fetchData();
+        refreshDashboard();
         toast.pushToast({ message: editingId ? 'Death record updated!' : 'Death record created!', type: 'success' });
       } else {
         const data = await res.json();
@@ -148,6 +154,7 @@ export default function DeathsPage() {
       const res = await fetchWithLoading(`/api/deaths?id=${id}`, { method: 'DELETE' });
       if (res.ok) {
         fetchData();
+        refreshDashboard();
         toast.pushToast({ message: 'Death record deleted!', type: 'success' });
       } else {
         const data = await res.json();
@@ -188,7 +195,7 @@ export default function DeathsPage() {
         setShowOffspringForm(false);
         setEditingOffspringId(null);
         setOffspringFormData({
-          birthId: '',
+          batchId: '',
           deathDate: new Date().toISOString().split('T')[0],
           count: '1',
           cause: '',
@@ -209,7 +216,7 @@ export default function DeathsPage() {
   const handleEditOffspring = (offspringDeath: any) => {
     setEditingOffspringId(offspringDeath.id);
     setOffspringFormData({
-      birthId: offspringDeath.birthId,
+      batchId: offspringDeath.batchId,
       deathDate: new Date(offspringDeath.deathDate).toISOString().split('T')[0],
       count: String(offspringDeath.count),
       cause: offspringDeath.cause || '',
@@ -224,6 +231,7 @@ export default function DeathsPage() {
       const res = await fetchWithLoading(`/api/offspring-deaths?id=${id}`, { method: 'DELETE' });
       if (res.ok) {
         fetchData();
+        refreshDashboard();
         toast.pushToast({ message: 'Offspring death record deleted!', type: 'success' });
       } else {
         const data = await res.json();
@@ -238,7 +246,7 @@ export default function DeathsPage() {
     setEditingOffspringId(null);
     setShowOffspringForm(false);
     setOffspringFormData({
-      birthId: '',
+      batchId: '',
       deathDate: new Date().toISOString().split('T')[0],
       count: '1',
       cause: '',
@@ -375,19 +383,19 @@ export default function DeathsPage() {
           <form onSubmit={handleOffspringSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Birth Record *
+                Offspring Batch *
               </label>
               <select
                 required
-                value={offspringFormData.birthId}
-                onChange={(e) => setOffspringFormData({ ...offspringFormData, birthId: e.target.value })}
+                value={offspringFormData.batchId}
+                onChange={(e) => setOffspringFormData({ ...offspringFormData, batchId: e.target.value })}
                 disabled={editingOffspringId !== null}
                 className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <option value="">Select birth</option>
-                {births.map((birth) => (
-                  <option key={birth.id} value={birth.id}>
-                    {new Date(birth.birthDate).toLocaleDateString()} - {birth.mating.buck.rabbitId} × {birth.mating.doe.rabbitId} ({birth.totalKits} kits)
+                <option value="">Select batch</option>
+                {batches.map((batch) => (
+                  <option key={batch.id} value={batch.id}>
+                    {batch.batchId} - {batch.count} kits {batch.maleCount || batch.femaleCount ? `(${batch.maleCount || 0}M, ${batch.femaleCount || 0}F)` : ''}
                   </option>
                 ))}
               </select>
@@ -543,21 +551,29 @@ export default function DeathsPage() {
               </div>
               <div className="space-y-3">
                 <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Birth Record</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Batch ID</p>
+                  <p className="text-lg font-semibold text-gray-900 dark:text-white">{viewingOffspringDeath.batch?.batchId}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {viewingOffspringDeath.batch?.count} total kits
+                    {viewingOffspringDeath.batch?.maleCount || viewingOffspringDeath.batch?.femaleCount ? ` (${viewingOffspringDeath.batch?.maleCount || 0}M, ${viewingOffspringDeath.batch?.femaleCount || 0}F)` : ''}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Birth Info</p>
                   <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                    {new Date(viewingOffspringDeath.birth.birthDate).toLocaleDateString()}
+                    {new Date(viewingOffspringDeath.batch?.birth?.birthDate).toLocaleDateString()}
                   </p>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {viewingOffspringDeath.birth.mating.buck.rabbitId} × {viewingOffspringDeath.birth.mating.doe.rabbitId}
+                    {viewingOffspringDeath.batch?.birth?.mating?.buck?.rabbitId} × {viewingOffspringDeath.batch?.birth?.mating?.doe?.rabbitId}
                   </p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500 dark:text-gray-400">Death Date</p>
-                    <p className="text-lg font-semibold text-gray-900 dark:text-white">{new Date(viewingOffspringDeath.deathDate).toLocaleDateString()}</p>
+                  <p className="text-lg font-semibold text-gray-900 dark:text-white">{new Date(viewingOffspringDeath.deathDate).toLocaleDateString()}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500 dark:text-gray-400">Age at Death</p>
-                  <p className="text-lg font-semibold text-gray-900 dark:text-white">{formatAgeFromDates(viewingOffspringDeath.birth?.birthDate, viewingOffspringDeath.deathDate)}</p>
+                  <p className="text-lg font-semibold text-gray-900 dark:text-white">{formatAgeFromDates(viewingOffspringDeath.batch?.birth?.birthDate, viewingOffspringDeath.deathDate)}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500 dark:text-gray-400">Number of Kits</p>
@@ -699,6 +715,12 @@ export default function DeathsPage() {
             <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Batch ID
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Batch Size
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Birth Date
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -708,16 +730,13 @@ export default function DeathsPage() {
                   Death Date
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Count
+                  Count Died
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Cause
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Notes
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Age at death
+                  Age at Death
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Actions
@@ -727,7 +746,7 @@ export default function DeathsPage() {
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
               {offspringDeaths.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={9} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
                     No offspring death records found
                   </td>
                 </tr>
@@ -735,10 +754,16 @@ export default function DeathsPage() {
                 offspringDeaths.map((offspringDeath) => (
                   <tr key={offspringDeath.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                      {new Date(offspringDeath.birth.birthDate).toLocaleDateString()}
+                      {offspringDeath.batch?.batchId}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {offspringDeath.birth.mating.buck.rabbitId} × {offspringDeath.birth.mating.doe.rabbitId}
+                      {offspringDeath.batch?.count} kits
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      {new Date(offspringDeath.batch?.birth?.birthDate).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      {offspringDeath.batch?.birth?.mating?.buck?.rabbitId} × {offspringDeath.batch?.birth?.mating?.doe?.rabbitId}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {new Date(offspringDeath.deathDate).toLocaleDateString()}
@@ -751,15 +776,8 @@ export default function DeathsPage() {
                         {offspringDeath.cause || 'Not specified'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
-                      {offspringDeath.notes ? (
-                        <span className="line-clamp-2">{offspringDeath.notes}</span>
-                      ) : (
-                        <span className="text-gray-400 dark:text-gray-500">-</span>
-                      )}
-                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {formatAgeFromDates(offspringDeath.birth?.birthDate, offspringDeath.deathDate)}
+                      {formatAgeFromDates(offspringDeath.batch?.birth?.birthDate, offspringDeath.deathDate)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button

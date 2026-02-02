@@ -169,7 +169,6 @@ model Birth {
   updatedAt        DateTime         @updatedAt
   mating           Mating           @relation(fields: [matingId], references: [id], onDelete: Cascade)
   offspringBatches OffspringBatch[]
-  offspringDeaths  OffspringDeath[]
 }
 
 model OffspringBatch {
@@ -190,11 +189,13 @@ model OffspringBatch {
   maleCount           Int?
   femaleCount         Int?
   sexedAt             DateTime?                     @db.Timestamptz(6)
+  availableCount      Int                           @default(0)
   birth               Birth                         @relation(fields: [birthId], references: [id], onDelete: Cascade)
   cage                Cage?                         @relation(fields: [cageId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cage")
   healthHistory       OffspringBatchHealthHistory[]
   weights             OffspringWeight[]
   sales               Sale[]
+  deaths              OffspringDeath[]
 }
 
 model OffspringBatchHealthHistory {
@@ -207,15 +208,15 @@ model OffspringBatchHealthHistory {
 }
 
 model OffspringDeath {
-  id        String   @id @default(cuid())
-  birthId   String
+  id        String         @id @default(cuid())
+  batchId   String
   deathDate DateTime
-  count     Int      @default(1)
+  count     Int            @default(1)
   cause     String?
   notes     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  birth     Birth    @relation(fields: [birthId], references: [id], onDelete: Cascade)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  batch     OffspringBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
 }
 
 model Death {

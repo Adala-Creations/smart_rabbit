@@ -59,8 +59,9 @@ export async function POST(req: Request) {
       orderBy: { createdAt: 'asc' },
       select: { id: true, count: true, createdAt: true },
     });
+    // Aggregate deaths recorded for any batch belonging to the same birth
     const deathsAgg = await prisma.offspringDeath.aggregate({
-      where: { birthId: source.birthId },
+      where: { batch: { birthId: source.birthId } },
       _sum: { count: true },
     });
     let remainingDeaths = (deathsAgg._sum.count ?? 0) as number;

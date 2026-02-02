@@ -1,0 +1,4 @@
+-- Check what migrations have been applied
+SELECT "id", "checksum", "finished_at", "migration_name" 
+FROM "_prisma_migrations" 
+ORDER BY "finished_at" DESC;
