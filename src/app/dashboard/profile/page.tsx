@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useToast } from '@/components/ToastProvider';
+import { useConfirm } from '@/components/ConfirmProvider';
 import useFetchWithLoading from '@/hooks/useFetchWithLoading';
-import { useSession } from 'next-auth/react';
 
 interface UserProfile {
   id: string;
@@ -13,14 +13,22 @@ interface UserProfile {
   createdAt: string;
 }
 
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+}
+
 export default function ProfilePage() {
   const toast = useToast();
-  const { data: session } = useSession();
+  const confirm = useConfirm();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [backupLoading, setBackupLoading] = useState(false);
+  const [restoreLoading, setRestoreLoading] = useState(false);
+  const [restoreFile, setRestoreFile] = useState<File | null>(null);
 
   // Form states
   const [name, setName] = useState('');
@@ -31,11 +39,71 @@ export default function ProfilePage() {
   const [success, setSuccess] = useState('');
   const [showTerminateConfirm, setShowTerminateConfirm] = useState(false);
   const [terminatePassword, setTerminatePassword] = useState('');
+  const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
+  const [isInstalled, setIsInstalled] = useState(false);
+  const [installing, setInstalling] = useState(false);
+  const [installTestMode, setInstallTestMode] = useState(false);
 
   const fetchWithLoading = useFetchWithLoading();
   useEffect(() => {
     fetchProfile();
   }, []);
+
+  useEffect(() => {
+    const isStandalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (window.navigator as any).standalone === true;
+    setIsInstalled(isStandalone);
+
+    const testModeEnabled = new URLSearchParams(window.location.search).get('pwaInstallTest') === '1';
+    setInstallTestMode(testModeEnabled);
+
+    const onBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallEvent(event as BeforeInstallPromptEvent);
+    };
+
+    const onAppInstalled = () => {
+      setIsInstalled(true);
+      setInstallEvent(null);
+      toast.pushToast({ message: 'Smart Rabbit installed successfully.', type: 'success' });
+    };
+
+    window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt);
+    window.addEventListener('appinstalled', onAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', onAppInstalled);
+    };
+  }, [toast]);
+
+  const handleInstallApp = async () => {
+    if (!installEvent) {
+      if (installTestMode) {
+        setSuccess('Install test mode: simulated install flow executed.');
+        setError('');
+        return;
+      }
+      setError('Install prompt is not available in this browser. Use browser menu > Install app or Add to Home Screen.');
+      return;
+    }
+
+    setInstalling(true);
+    try {
+      await installEvent.prompt();
+      const choice = await installEvent.userChoice;
+
+      if (choice.outcome === 'accepted') {
+        setSuccess('Install accepted. Smart Rabbit will open as an app after install completes.');
+      } else {
+        setError('Install was dismissed. You can try again any time from this page.');
+      }
+      setInstallEvent(null);
+    } finally {
+      setInstalling(false);
+    }
+  };
 
   const fetchProfile = async () => {
     try {
@@ -145,6 +213,96 @@ export default function ProfilePage() {
       setError('Failed to terminate account');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDownloadBackup = async () => {
+    setError('');
+    setSuccess('');
+    setBackupLoading(true);
+
+    try {
+      const response = await fetchWithLoading('/api/profile/backup');
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        setError(data.error || 'Failed to generate backup');
+        return;
+      }
+
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const dateStamp = new Date().toISOString().slice(0, 10);
+      link.href = downloadUrl;
+      link.download = `smart-rabbit-backup-${dateStamp}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+
+      setSuccess('Backup downloaded successfully. Keep the file in a safe place.');
+    } catch (downloadError) {
+      console.error('Error downloading backup:', downloadError);
+      setError('Failed to generate backup');
+    } finally {
+      setBackupLoading(false);
+    }
+  };
+
+  const handleRestoreBackup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    if (!restoreFile) {
+      setError('Select a backup file to restore.');
+      return;
+    }
+
+    const confirmed = await confirm(
+      'Restore will replace your current rabbits, breeding, finance, notes, and profile name with the contents of this backup. Continue?'
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setRestoreLoading(true);
+
+    try {
+      const backupContent = await restoreFile.text();
+      const response = await fetchWithLoading('/api/profile/backup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: backupContent,
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setError(data.error || 'Failed to restore backup');
+        return;
+      }
+
+      setRestoreFile(null);
+      const fileInput = document.getElementById('profile-backup-file') as HTMLInputElement | null;
+      if (fileInput) {
+        fileInput.value = '';
+      }
+
+      await fetchProfile();
+
+      const workerSummary = data.skippedWorkerAssignments > 0
+        ? ` ${data.restoredWorkerAssignments} worker assignment${data.restoredWorkerAssignments === 1 ? '' : 's'} restored, ${data.skippedWorkerAssignments} skipped because the worker account no longer exists.`
+        : '';
+      setSuccess(`Backup restored successfully.${workerSummary}`);
+      toast.pushToast({ message: 'Backup restored successfully.', type: 'success' });
+    } catch (restoreError) {
+      console.error('Error restoring backup:', restoreError);
+      setError('Failed to restore backup');
+    } finally {
+      setRestoreLoading(false);
     }
   };
 
@@ -369,6 +527,112 @@ export default function ProfilePage() {
           <p className="text-gray-600 dark:text-gray-400">
             Keep your account secure by changing your password regularly.
           </p>
+        )}
+      </div>
+
+      {profile.role === 'OWNER' && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mt-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="max-w-2xl">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Backup & Restore</h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                Download a recovery file to this device, then use it later to rebuild your farm records if the data becomes corrupted or lost.
+              </p>
+              <div className="mt-3 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/40 p-3 rounded-lg space-y-1">
+                <p>Included: rabbits, breeding history, offspring batches, finances, notes, notifications, locations, and worker assignments for existing worker accounts.</p>
+                <p>Not included: passwords, sessions, and worker credentials.</p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleDownloadBackup}
+              disabled={backupLoading || restoreLoading}
+              className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
+            >
+              {backupLoading ? 'Preparing Backup...' : 'Download Backup'} <span className="text-3xl mb-2">📥</span>
+            </button>
+          </div>
+
+          <form onSubmit={handleRestoreBackup} className="mt-6 border-t border-gray-200 dark:border-gray-700 pt-6 space-y-4">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Restore From Backup</h3>
+              <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                Restoring replaces your current operational data with the selected backup file.
+              </p>
+            </div>
+
+            <div>
+              <label htmlFor="profile-backup-file" className="block text-sm font-medium text-blue-600 dark:text-blue-300 mb-2">
+                Select Backup File 
+                <span className="text-3xl mb-2">📁</span>
+              </label>
+              <input
+                id="profile-backup-file"
+                type="file"
+                accept="application/json,.json"
+                onChange={(event) => setRestoreFile(event.target.files?.[0] ?? null)}
+                className="block w-full text-sm text-gray-700 dark:text-gray-300 file:mr-4 file:rounded-md file:border-0 file:bg-gray-100 dark:file:bg-gray-700 file:px-4 file:py-2 file:text-sm file:font-medium dark:file:text-gray-200"
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                Use a backup downloaded from this same owner account.
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <button
+                type="submit"
+                disabled={!restoreFile || restoreLoading || backupLoading}
+                className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {restoreLoading ? 'Restoring Backup...' : 'Restore Backup'}
+              </button>
+              {restoreFile && (
+                <p className="text-sm text-gray-600 dark:text-gray-400 truncate">
+                  Selected file: {restoreFile.name}
+                </p>
+              )}
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Install App */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mt-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Install Smart Rabbit App</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              Install Smart Rabbit on this device for faster access and better offline support.
+            </p>
+            {isInstalled ? (
+              <p className="text-sm text-green-700 dark:text-green-300 mt-2">Already installed on this device.</p>
+            ) : installTestMode ? (
+              <p className="text-sm text-indigo-700 dark:text-indigo-300 mt-2">Install test mode enabled via <code>?pwaInstallTest=1</code>.</p>
+            ) : installEvent ? (
+              <p className="text-sm text-blue-700 dark:text-blue-300 mt-2">Install is available in this browser.</p>
+            ) : (
+              <p className="text-sm text-amber-700 dark:text-amber-300 mt-2">
+                No direct install prompt detected. You can still install from browser menu.
+              </p>
+            )}
+          </div>
+
+          <button
+            onClick={handleInstallApp}
+            disabled={isInstalled || (!installEvent && !installTestMode) || installing}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isInstalled ? 'Installed' : installing ? 'Opening prompt...' : installTestMode ? 'Install App (Test Mode)' : 'Install App'}
+          </button>
+        </div>
+
+        {!isInstalled && !installEvent && (
+          <div className="mt-4 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/40 p-3 rounded">
+            <p className="font-medium mb-1">Manual install options:</p>
+            <p>Chrome/Edge Android/Desktop: browser menu, then Install app.</p>
+            <p>iPhone/iPad Safari: Share button, then Add to Home Screen.</p>
+          </div>
         )}
       </div>
 

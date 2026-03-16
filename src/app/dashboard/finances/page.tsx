@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import useFetchWithLoading from '@/hooks/useFetchWithLoading';
+import useOfflineMutation from '@/hooks/useOfflineMutation';
 import { useToast } from '@/components/ToastProvider';
 import { useConfirm } from '@/components/ConfirmProvider';
+import { OFFLINE_QUEUE_EVENTS } from '@/lib/offlineMutationFetch';
 
 export default function FinancesPage() {
   const toast = useToast();
@@ -100,9 +102,31 @@ export default function FinancesPage() {
   };
   const confirm = useConfirm();
   const fetchWithLoading = useFetchWithLoading();
+  const { mutateWithQueue } = useOfflineMutation();
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    const onSyncComplete = (event: Event) => {
+      const customEvent = event as CustomEvent<{ succeeded?: number; failed?: number }>;
+      const succeeded = customEvent.detail?.succeeded ?? 0;
+      const failed = customEvent.detail?.failed ?? 0;
+
+      if (succeeded > 0) {
+        toast.pushToast({ message: `Synced ${succeeded} queued change${succeeded === 1 ? '' : 's'}.`, type: 'success' });
+        fetchData();
+      } else if (failed > 0) {
+        toast.pushToast({ message: `${failed} queued change${failed === 1 ? '' : 's'} could not be applied.`, type: 'warning' });
+      }
+    };
+
+    window.addEventListener(OFFLINE_QUEUE_EVENTS.syncComplete, onSyncComplete);
+
+    return () => {
+      window.removeEventListener(OFFLINE_QUEUE_EVENTS.syncComplete, onSyncComplete);
+    };
+  }, [toast]);
 
   const fetchData = async () => {
     try {
@@ -140,7 +164,7 @@ export default function FinancesPage() {
       const method = editingSaleId ? 'PUT' : 'POST';
       const url = '/api/sales';
 
-      const res = await fetchWithLoading(url, {
+      const { response: res, queued } = await mutateWithQueue(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -151,7 +175,28 @@ export default function FinancesPage() {
           batches: saleType === 'multi-batch' ? selectedBatches.map(sb => ({ batchId: sb.batchId, quantitySold: sb.quantity })) : undefined,
           quantitySold: saleType === 'batch' ? quantitySold : undefined,
         }),
+      }, {
+        description: editingSaleId ? 'Update sale' : 'Create sale',
       });
+
+      if (queued) {
+        toast.pushToast({ message: 'No network. Sale change queued and will sync automatically.', type: 'info' });
+        setShowSaleForm(false);
+        setEditingSaleId(null);
+        setSaleData({
+          rabbitId: '',
+          description: '',
+          amount: '',
+          saleDate: new Date().toISOString().split('T')[0],
+          buyerName: '',
+          buyerContact: '',
+          notes: '',
+        });
+        setSelectedBatchId('');
+        setQuantitySold('');
+        setSelectedBatches([]);
+        return;
+      }
 
       if (res.ok) {
         setShowSaleForm(false);
@@ -169,6 +214,9 @@ export default function FinancesPage() {
         setQuantitySold('');
         setSelectedBatches([]);
         fetchData();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.pushToast({ message: data.error || 'Failed to save sale', type: 'error' });
       }
     } catch (error) {
       console.error('Error recording sale:', error);
@@ -195,11 +243,22 @@ export default function FinancesPage() {
   const handleSaleDelete = async (id: string) => {
     if (!(await confirm('Are you sure you want to delete this sale record?'))) return;
     try {
-      const res = await fetchWithLoading(`/api/sales?id=${id}`, { method: 'DELETE' });
+      const { response: res, queued } = await mutateWithQueue(`/api/sales?id=${id}`, {
+        method: 'DELETE',
+      }, {
+        description: 'Delete sale',
+      });
+
+      if (queued) {
+        setSales((prev) => prev.filter((sale) => sale.id !== id));
+        toast.pushToast({ message: 'No network. Delete was queued and will sync automatically.', type: 'info' });
+        return;
+      }
+
       if (res.ok) {
         fetchData();
       } else {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         toast.pushToast({ message: data.error || 'Failed to delete sale', type: 'error' });
       }
     } catch (error) {
@@ -231,14 +290,31 @@ export default function FinancesPage() {
       const method = editingExpenseId ? 'PUT' : 'POST';
       const url = '/api/expenses';
 
-      const res = await fetchWithLoading(url, {
+      const { response: res, queued } = await mutateWithQueue(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...(editingExpenseId ? { id: editingExpenseId } : {}),
           ...expenseData,
         }),
+      }, {
+        description: editingExpenseId ? 'Update expense' : 'Create expense',
       });
+
+      if (queued) {
+        toast.pushToast({ message: 'No network. Expense change queued and will sync automatically.', type: 'info' });
+        setShowExpenseForm(false);
+        setEditingExpenseId(null);
+        setExpenseData({
+          description: '',
+          category: 'Feed',
+          amount: '',
+          expenseDate: new Date().toISOString().split('T')[0],
+          vendor: '',
+          notes: '',
+        });
+        return;
+      }
 
       if (res.ok) {
         setShowExpenseForm(false);
@@ -252,6 +328,9 @@ export default function FinancesPage() {
           notes: '',
         });
         fetchData();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.pushToast({ message: data.error || 'Failed to save expense', type: 'error' });
       }
     } catch (error) {
       console.error('Error recording expense:', error);
@@ -274,11 +353,22 @@ export default function FinancesPage() {
   const handleExpenseDelete = async (id: string) => {
     if (!(await confirm('Are you sure you want to delete this expense record?'))) return;
     try {
-      const res = await fetchWithLoading(`/api/expenses?id=${id}`, { method: 'DELETE' });
+      const { response: res, queued } = await mutateWithQueue(`/api/expenses?id=${id}`, {
+        method: 'DELETE',
+      }, {
+        description: 'Delete expense',
+      });
+
+      if (queued) {
+        setExpenses((prev) => prev.filter((expense) => expense.id !== id));
+        toast.pushToast({ message: 'No network. Delete was queued and will sync automatically.', type: 'info' });
+        return;
+      }
+
       if (res.ok) {
         fetchData();
       } else {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         toast.pushToast({ message: data.error || 'Failed to delete expense', type: 'error' });
       }
     } catch (error) {
@@ -304,7 +394,7 @@ export default function FinancesPage() {
       const method = editingDebtorId ? 'PUT' : 'POST';
       const url = '/api/debtors';
 
-      const res = await fetchWithLoading(url, {
+      const { response: res, queued } = await mutateWithQueue(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -313,21 +403,24 @@ export default function FinancesPage() {
           amountOwed: debtorData.amountOwed || undefined,
           dueDate: debtorData.dueDate || undefined,
         }),
-      });
+      }, { description: editingDebtorId ? 'Update debtor' : 'Create debtor' });
+
+      if (queued) {
+        toast.pushToast({ message: 'No network. Debtor change queued and will sync automatically.', type: 'info' });
+        setShowDebtorForm(false);
+        setEditingDebtorId(null);
+        setDebtorData({ name: '', contact: '', amountOwed: '', description: '', dueDate: '', status: 'PENDING', notes: '' });
+        return;
+      }
 
       if (res.ok) {
         setShowDebtorForm(false);
         setEditingDebtorId(null);
-        setDebtorData({
-          name: '',
-          contact: '',
-          amountOwed: '',
-          description: '',
-          dueDate: '',
-          status: 'PENDING',
-          notes: '',
-        });
+        setDebtorData({ name: '', contact: '', amountOwed: '', description: '', dueDate: '', status: 'PENDING', notes: '' });
         fetchData();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.pushToast({ message: data.error || 'Failed to save debtor', type: 'error' });
       }
     } catch (error) {
       console.error('Error recording debtor:', error);
@@ -351,11 +444,19 @@ export default function FinancesPage() {
   const handleDebtorDelete = async (id: string) => {
     if (!(await confirm('Are you sure you want to delete this debtor record?'))) return;
     try {
-      const res = await fetchWithLoading(`/api/debtors?id=${id}`, { method: 'DELETE' });
+      const { response: res, queued } = await mutateWithQueue(`/api/debtors?id=${id}`, {
+        method: 'DELETE',
+      }, { description: 'Delete debtor' });
+
+      if (queued) {
+        setDebtors((prev) => prev.filter((d) => d.id !== id));
+        toast.pushToast({ message: 'No network. Delete queued and will sync automatically.', type: 'info' });
+        return;
+      }
       if (res.ok) {
         fetchData();
       } else {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         toast.pushToast({ message: data.error || 'Failed to delete debtor', type: 'error' });
       }
     } catch (error) {
@@ -382,7 +483,7 @@ export default function FinancesPage() {
       const method = editingCreditorId ? 'PUT' : 'POST';
       const url = '/api/creditors';
 
-      const res = await fetchWithLoading(url, {
+      const { response: res, queued } = await mutateWithQueue(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -391,21 +492,24 @@ export default function FinancesPage() {
           amountOwed: creditorData.amountOwed || undefined,
           dueDate: creditorData.dueDate || undefined,
         }),
-      });
+      }, { description: editingCreditorId ? 'Update creditor' : 'Create creditor' });
+
+      if (queued) {
+        toast.pushToast({ message: 'No network. Creditor change queued and will sync automatically.', type: 'info' });
+        setShowCreditorForm(false);
+        setEditingCreditorId(null);
+        setCreditorData({ name: '', contact: '', amountOwed: '', description: '', dueDate: '', status: 'PENDING', notes: '' });
+        return;
+      }
 
       if (res.ok) {
         setShowCreditorForm(false);
         setEditingCreditorId(null);
-        setCreditorData({
-          name: '',
-          contact: '',
-          amountOwed: '',
-          description: '',
-          dueDate: '',
-          status: 'PENDING',
-          notes: '',
-        });
+        setCreditorData({ name: '', contact: '', amountOwed: '', description: '', dueDate: '', status: 'PENDING', notes: '' });
         fetchData();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.pushToast({ message: data.error || 'Failed to save creditor', type: 'error' });
       }
     } catch (error) {
       console.error('Error recording creditor:', error);
@@ -429,11 +533,19 @@ export default function FinancesPage() {
   const handleCreditorDelete = async (id: string) => {
     if (!(await confirm('Are you sure you want to delete this creditor record?'))) return;
     try {
-      const res = await fetchWithLoading(`/api/creditors?id=${id}`, { method: 'DELETE' });
+      const { response: res, queued } = await mutateWithQueue(`/api/creditors?id=${id}`, {
+        method: 'DELETE',
+      }, { description: 'Delete creditor' });
+
+      if (queued) {
+        setCreditors((prev) => prev.filter((c) => c.id !== id));
+        toast.pushToast({ message: 'No network. Delete queued and will sync automatically.', type: 'info' });
+        return;
+      }
       if (res.ok) {
         fetchData();
       } else {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         toast.pushToast({ message: data.error || 'Failed to delete creditor', type: 'error' });
       }
     } catch (error) {

@@ -261,20 +261,20 @@ function DashboardContent() {
     <div className="container mx-auto px-4 py-8">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
         <h1 className="text-2xl sm:text-3xl font-bold">Dashboard</h1>
-        {activeLocation ? (
+        {/* {activeLocation ? (
           <div className="flex flex-wrap items-center gap-2 bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 px-3 sm:px-4 py-2 rounded-full text-sm font-medium w-fit max-w-full">
             <span className="hidden sm:inline mr-1">📍</span>
             <span className="truncate max-w-[180px] sm:max-w-none">
               <span className="hidden sm:inline">Active: </span>
               <span className="font-semibold">{activeLocation.name}</span>
             </span>
-            {/* <Link 
+            <Link 
               href="/dashboard/locations" 
               className="whitespace-nowrap text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 text-sm"
               title="Change Location"
             >
               
-            </Link> */}
+            </Link>
           </div>
         ) : (
           <Link 
@@ -283,7 +283,7 @@ function DashboardContent() {
           >
             Select Active Location
           </Link>
-        )}
+        )} */}
       </div>
 
       {/* Stats Grid - Fully Responsive */}

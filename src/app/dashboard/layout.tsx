@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { ActiveLocationProvider } from '@/contexts/ActiveLocationContext';
 import { DashboardRefreshProvider } from '@/contexts/DashboardRefreshContext';
+import OfflineSyncStatus from '@/components/OfflineSyncStatus';
+import OfflineWarmup from '@/components/OfflineWarmup';
 
 export default function DashboardLayout({
   children,
@@ -46,10 +48,11 @@ export default function DashboardLayout({
     { href: '/dashboard/locations', label: 'Locations', icon: '📍' },
     { href: '/dashboard/workers', label: 'Workers', icon: '👷' },
     { href: '/dashboard/reports', label: 'Reports', icon: '📄' },
+    { href: '/dashboard/outbox', label: 'Outbox', icon: '📤' },
     { href: '/dashboard/profile', label: 'Profile', icon: '👤' },
   ];
   // Desktop should only show the requested subset
-  const desktopNavLinks = fullNavLinks.filter(l => ['Dashboard','Notes','Locations','Workers','Reports','Profile'].includes(l.label));
+  const desktopNavLinks = fullNavLinks.filter(l => ['Dashboard','Notes','Locations','Workers','Reports','Outbox','Profile'].includes(l.label));
 
   return (
     <DashboardRefreshProvider>
@@ -157,6 +160,8 @@ export default function DashboardLayout({
       
       {/* Main Content - Responsive Padding */}
       <main className="max-w-7xl mx-auto py-4 px-4 sm:py-6 sm:px-6 lg:px-8">
+        <OfflineWarmup />
+        <OfflineSyncStatus />
         {children}
       </main>
       </div>

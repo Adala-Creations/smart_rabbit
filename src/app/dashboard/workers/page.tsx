@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import useFetchWithLoading from '@/hooks/useFetchWithLoading';
+import useOfflineMutation from '@/hooks/useOfflineMutation';
 import { useToast } from '@/components/ToastProvider';
 import { useConfirm } from '@/components/ConfirmProvider';
 import { useSession } from 'next-auth/react';
+import { OFFLINE_QUEUE_EVENTS } from '@/lib/offlineMutationFetch';
 
 interface User {
   id: string;
@@ -64,11 +66,26 @@ export default function WorkersPage() {
   const [showPassword, setShowPassword] = useState(false);
 
   const fetchWithLoading = useFetchWithLoading();
+  const { mutateWithQueue } = useOfflineMutation();
   useEffect(() => {
     fetchUsers();
     fetchRabbitries();
     fetchWorkers();
   }, []);
+
+  useEffect(() => {
+    const onSyncComplete = (event: Event) => {
+      const customEvent = event as CustomEvent<{ succeeded?: number }>;
+      const succeeded = customEvent.detail?.succeeded ?? 0;
+      if (succeeded > 0) {
+        toast.pushToast({ message: `Synced ${succeeded} queued change${succeeded === 1 ? '' : 's'}.`, type: 'success' });
+        fetchUsers();
+        fetchWorkers();
+      }
+    };
+    window.addEventListener(OFFLINE_QUEUE_EVENTS.syncComplete, onSyncComplete);
+    return () => window.removeEventListener(OFFLINE_QUEUE_EVENTS.syncComplete, onSyncComplete);
+  }, [toast]);
 
   const fetchUsers = async () => {
     try {
@@ -161,16 +178,22 @@ export default function WorkersPage() {
     }
 
     try {
-      const res = await fetchWithLoading(`/api/workers?id=${id}`, {
+      const { response: res, queued } = await mutateWithQueue(`/api/workers?id=${id}`, {
         method: 'DELETE',
-      });
+      }, { description: 'Remove worker assignment' });
+
+      if (queued) {
+        setWorkers((prev) => prev.filter((w) => w.id !== id));
+        toast.pushToast({ message: 'No network. Worker removal queued and will sync automatically.', type: 'info' });
+        return;
+      }
 
       if (res.ok) {
         toast.pushToast({ message: 'Worker removed successfully!', type: 'success' });
         fetchWorkers();
         fetchUsers();
       } else {
-        const error = await res.json();
+        const error = await res.json().catch(() => ({}));
         toast.pushToast({ message: error.error || 'Failed to remove worker', type: 'error' });
       }
     } catch (error) {
@@ -181,7 +204,7 @@ export default function WorkersPage() {
 
   const handleUpdateUser = async (userId: string) => {
     try {
-      const res = await fetchWithLoading('/api/users', {
+      const { response: res, queued } = await mutateWithQueue('/api/users', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -191,7 +214,13 @@ export default function WorkersPage() {
           rabbitryId: editRabbitryId || undefined,
           workerRole: editWorkerRole,
         }),
-      });
+      }, { description: 'Update user' });
+
+      if (queued) {
+        toast.pushToast({ message: 'No network. User update queued and will sync automatically.', type: 'info' });
+        setEditingUser(null);
+        return;
+      }
 
       if (res.ok) {
         toast.pushToast({ message: 'User updated successfully!', type: 'success' });
@@ -199,7 +228,7 @@ export default function WorkersPage() {
         fetchUsers();
         fetchWorkers();
       } else {
-        const error = await res.json();
+        const error = await res.json().catch(() => ({}));
         toast.pushToast({ message: error.error || 'Failed to update user', type: 'error' });
       }
     } catch (error) {
@@ -214,15 +243,21 @@ export default function WorkersPage() {
     }
 
     try {
-      const res = await fetchWithLoading(`/api/users?id=${userId}`, {
+      const { response: res, queued } = await mutateWithQueue(`/api/users?id=${userId}`, {
         method: 'DELETE',
-      });
+      }, { description: 'Delete user' });
+
+      if (queued) {
+        setUsers((prev) => prev.filter((u) => u.id !== userId));
+        toast.pushToast({ message: 'No network. User deletion queued and will sync automatically.', type: 'info' });
+        return;
+      }
 
       if (res.ok) {
         toast.pushToast({ message: 'User deleted successfully!', type: 'success' });
         fetchUsers();
       } else {
-        const error = await res.json();
+        const error = await res.json().catch(() => ({}));
         toast.pushToast({ message: error.error || 'Failed to delete user', type: 'error' });
       }
     } catch (error) {

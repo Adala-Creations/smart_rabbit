@@ -2,8 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react';
 import useFetchWithLoading from '@/hooks/useFetchWithLoading';
+import useOfflineMutation from '@/hooks/useOfflineMutation';
 import { useDashboardRefresh } from '@/contexts/DashboardRefreshContext';
 import { useToast } from '@/components/ToastProvider';
+import { OFFLINE_QUEUE_EVENTS } from '@/lib/offlineMutationFetch';
 
 export default function DeathsPage() {
   const [deaths, setDeaths] = useState<any[]>([]);
@@ -18,6 +20,7 @@ export default function DeathsPage() {
   const [viewingOffspringDeath, setViewingOffspringDeath] = useState<any | null>(null);
   const toast = useToast();
   const fetchWithLoading = useFetchWithLoading();
+  const { mutateWithQueue } = useOfflineMutation();
   const { refreshDashboard } = useDashboardRefresh();
   const parentFormRef = useRef<HTMLDivElement | null>(null);
   const offspringFormRef = useRef<HTMLDivElement | null>(null);
@@ -38,6 +41,20 @@ export default function DeathsPage() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    const onSyncComplete = (event: Event) => {
+      const customEvent = event as CustomEvent<{ succeeded?: number; failed?: number }>;
+      const succeeded = customEvent.detail?.succeeded ?? 0;
+      if (succeeded > 0) {
+        toast.pushToast({ message: `Synced ${succeeded} queued change${succeeded === 1 ? '' : 's'}.`, type: 'success' });
+        fetchData();
+        refreshDashboard();
+      }
+    };
+    window.addEventListener(OFFLINE_QUEUE_EVENTS.syncComplete, onSyncComplete);
+    return () => window.removeEventListener(OFFLINE_QUEUE_EVENTS.syncComplete, onSyncComplete);
+  }, [toast]);
 
   useEffect(() => {
     if (showForm && parentFormRef.current) {
@@ -109,26 +126,29 @@ export default function DeathsPage() {
         ? JSON.stringify({ id: editingId, ...formData })
         : JSON.stringify(formData);
 
-      const res = await fetchWithLoading(url, {
+      const { response: res, queued } = await mutateWithQueue(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body,
-      });
+      }, { description: editingId ? 'Update death record' : 'Create death record' });
+
+      if (queued) {
+        toast.pushToast({ message: 'No network. Death record queued and will sync automatically.', type: 'info' });
+        setShowForm(false);
+        setEditingId(null);
+        setFormData({ rabbitId: '', deathDate: new Date().toISOString().split('T')[0], cause: '', notes: '' });
+        return;
+      }
 
       if (res.ok) {
         setShowForm(false);
         setEditingId(null);
-        setFormData({
-          rabbitId: '',
-          deathDate: new Date().toISOString().split('T')[0],
-          cause: '',
-          notes: '',
-        });
+        setFormData({ rabbitId: '', deathDate: new Date().toISOString().split('T')[0], cause: '', notes: '' });
         fetchData();
         refreshDashboard();
         toast.pushToast({ message: editingId ? 'Death record updated!' : 'Death record created!', type: 'success' });
       } else {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         toast.pushToast({ message: data.error || 'Failed to save death record', type: 'error' });
       }
     } catch (error) {
@@ -151,13 +171,21 @@ export default function DeathsPage() {
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this death record?')) return;
     try {
-      const res = await fetchWithLoading(`/api/deaths?id=${id}`, { method: 'DELETE' });
+      const { response: res, queued } = await mutateWithQueue(`/api/deaths?id=${id}`, {
+        method: 'DELETE',
+      }, { description: 'Delete death record' });
+
+      if (queued) {
+        setDeaths((prev) => prev.filter((d) => d.id !== id));
+        toast.pushToast({ message: 'No network. Delete queued and will sync automatically.', type: 'info' });
+        return;
+      }
       if (res.ok) {
         fetchData();
         refreshDashboard();
         toast.pushToast({ message: 'Death record deleted!', type: 'success' });
       } else {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         toast.pushToast({ message: data.error || 'Failed to delete', type: 'error' });
       }
     } catch (error) {
@@ -185,26 +213,28 @@ export default function DeathsPage() {
         ? JSON.stringify({ id: editingOffspringId, ...offspringFormData })
         : JSON.stringify(offspringFormData);
 
-      const res = await fetchWithLoading(url, {
+      const { response: res, queued } = await mutateWithQueue(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body,
-      });
+      }, { description: editingOffspringId ? 'Update batch death record' : 'Create batch death record' });
+
+      if (queued) {
+        toast.pushToast({ message: 'No network. Batch death record queued and will sync automatically.', type: 'info' });
+        setShowOffspringForm(false);
+        setEditingOffspringId(null);
+        setOffspringFormData({ batchId: '', deathDate: new Date().toISOString().split('T')[0], count: '1', cause: '', notes: '' });
+        return;
+      }
 
       if (res.ok) {
         setShowOffspringForm(false);
         setEditingOffspringId(null);
-        setOffspringFormData({
-          batchId: '',
-          deathDate: new Date().toISOString().split('T')[0],
-          count: '1',
-          cause: '',
-          notes: '',
-        });
+        setOffspringFormData({ batchId: '', deathDate: new Date().toISOString().split('T')[0], count: '1', cause: '', notes: '' });
         fetchData();
         toast.pushToast({ message: editingOffspringId ? 'Offspring death record updated!' : 'Offspring death record created!', type: 'success' });
       } else {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         toast.pushToast({ message: data.error || 'Failed to save offspring death record', type: 'error' });
       }
     } catch (error) {
@@ -228,13 +258,21 @@ export default function DeathsPage() {
   const handleDeleteOffspring = async (id: string) => {
     if (!confirm('Are you sure you want to delete this offspring death record?')) return;
     try {
-      const res = await fetchWithLoading(`/api/offspring-deaths?id=${id}`, { method: 'DELETE' });
+      const { response: res, queued } = await mutateWithQueue(`/api/offspring-deaths?id=${id}`, {
+        method: 'DELETE',
+      }, { description: 'Delete batch death record' });
+
+      if (queued) {
+        setOffspringDeaths((prev) => prev.filter((d) => d.id !== id));
+        toast.pushToast({ message: 'No network. Delete queued and will sync automatically.', type: 'info' });
+        return;
+      }
       if (res.ok) {
         fetchData();
         refreshDashboard();
         toast.pushToast({ message: 'Offspring death record deleted!', type: 'success' });
       } else {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         toast.pushToast({ message: data.error || 'Failed to delete', type: 'error' });
       }
     } catch (error) {

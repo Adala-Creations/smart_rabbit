@@ -3,8 +3,10 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import useFetchWithLoading from '@/hooks/useFetchWithLoading';
+import useOfflineMutation from '@/hooks/useOfflineMutation';
 import { useToast } from '@/components/ToastProvider';
 import { useConfirm } from '@/components/ConfirmProvider';
+import { OFFLINE_QUEUE_EVENTS } from '@/lib/offlineMutationFetch';
 
 type NoteType = 'GENERAL' | 'HEALTH' | 'FINANCE' | 'OTHER';
 type NoteSubject = 'NONE' | 'RABBIT' | 'BATCH';
@@ -13,6 +15,7 @@ export default function NotesPage() {
   const toast = useToast();
   const confirm = useConfirm();
   const fetchWithLoading = useFetchWithLoading();
+  const { mutateWithQueue } = useOfflineMutation();
   const searchParams = useSearchParams();
 
   const [notes, setNotes] = useState<any[]>([]);
@@ -41,6 +44,27 @@ export default function NotesPage() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    const onSyncComplete = (event: Event) => {
+      const customEvent = event as CustomEvent<{ succeeded?: number; failed?: number }>;
+      const succeeded = customEvent.detail?.succeeded ?? 0;
+      const failed = customEvent.detail?.failed ?? 0;
+
+      if (succeeded > 0) {
+        toast.pushToast({ message: `Synced ${succeeded} queued change${succeeded === 1 ? '' : 's'}.`, type: 'success' });
+        fetchData();
+      } else if (failed > 0) {
+        toast.pushToast({ message: `${failed} queued change${failed === 1 ? '' : 's'} could not be applied.`, type: 'warning' });
+      }
+    };
+
+    window.addEventListener(OFFLINE_QUEUE_EVENTS.syncComplete, onSyncComplete);
+
+    return () => {
+      window.removeEventListener(OFFLINE_QUEUE_EVENTS.syncComplete, onSyncComplete);
+    };
+  }, [toast]);
 
   const fetchData = async () => {
     try {
@@ -91,14 +115,23 @@ export default function NotesPage() {
         batchId: formData.subject === 'BATCH' ? formData.batchId : undefined,
       };
 
-      const res = await fetchWithLoading('/api/notes', {
+      const { response: res, queued } = await mutateWithQueue('/api/notes', {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
+      }, {
+        description: editingId ? 'Update note' : 'Create note',
       });
 
+      if (queued) {
+        toast.pushToast({ message: 'No network. Note change queued and will sync automatically.', type: 'info' });
+        setShowForm(false);
+        resetForm();
+        return;
+      }
+
       if (!res.ok) {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         toast.pushToast({ message: data.error || 'Failed to save note', type: 'error' });
         return;
       }
@@ -130,9 +163,20 @@ export default function NotesPage() {
     if (!(await confirm('Delete this note?'))) return;
 
     try {
-      const res = await fetchWithLoading(`/api/notes?id=${id}`, { method: 'DELETE' });
+      const { response: res, queued } = await mutateWithQueue(`/api/notes?id=${id}`, {
+        method: 'DELETE',
+      }, {
+        description: 'Delete note',
+      });
+
+      if (queued) {
+        setNotes((prev) => prev.filter((note) => note.id !== id));
+        toast.pushToast({ message: 'No network. Delete was queued and will sync automatically.', type: 'info' });
+        return;
+      }
+
       if (!res.ok) {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         toast.pushToast({ message: data.error || 'Failed to delete note', type: 'error' });
         return;
       }
