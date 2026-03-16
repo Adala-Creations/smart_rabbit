@@ -11,10 +11,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { batchId } = (await req.json()) as { batchId?: string };
+    const { batchId, confirmKey } = (await req.json()) as { batchId?: string; confirmKey?: string };
 
     if (!batchId) {
       return NextResponse.json({ error: 'batchId is required' }, { status: 400 });
+    }
+
+    if (confirmKey !== 'revert') {
+      return NextResponse.json({ error: 'Confirmation key is required to revert sexing' }, { status: 400 });
     }
 
     const batch = await prisma.offspringBatch.findUnique({

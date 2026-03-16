@@ -56,7 +56,7 @@ async function createSale({
       where: { id: batchId },
     });
     if (batch) {
-      const quantity = quantitySold;
+      const quantity = Math.max(0, quantitySold);
 
       // For sexed batches, reduce sex-specific counts instead of main count
       if (batch.status === 'SEXED') {
@@ -66,7 +66,7 @@ async function createSale({
 
         if (totalSexed > 0) {
           // Reduce from females first, then males
-          let remainingToSell = quantity;
+          let remainingToSell = Math.min(quantity, totalSexed);
           let newFemaleCount = femaleCount;
           let newMaleCount = maleCount;
 
@@ -87,6 +87,17 @@ async function createSale({
             data: {
               maleCount: newMaleCount,
               femaleCount: newFemaleCount,
+              count: newMaleCount + newFemaleCount,
+              availableCount: newMaleCount + newFemaleCount,
+            },
+          });
+        } else {
+          const nextCount = Math.max(0, (batch.availableCount ?? batch.count ?? 0) - quantity);
+          await prisma.offspringBatch.update({
+            where: { id: batchId },
+            data: {
+              count: nextCount,
+              availableCount: nextCount,
             },
           });
         }
@@ -95,7 +106,10 @@ async function createSale({
         const newCount = Math.max(0, batch.count - quantity);
         await prisma.offspringBatch.update({
           where: { id: batchId },
-          data: { count: newCount },
+          data: {
+            count: newCount,
+            availableCount: newCount,
+          },
         });
       }
     }

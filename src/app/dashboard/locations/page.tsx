@@ -196,6 +196,13 @@ export default function LocationsPage() {
 
   const handleLocationSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!editingLocationId && totalLocations > 0) {
+      setShowLocationForm(false);
+      toast.pushToast({ message: 'Only one location is supported for now.', type: 'error' });
+      return;
+    }
+
     try {
       const method = editingLocationId ? 'PUT' : 'POST';
       const body = editingLocationId 
@@ -457,6 +464,7 @@ export default function LocationsPage() {
   }, [page, perPage, sortOrder]);
 
   const totalPages = Math.max(1, Math.ceil(totalLocations / perPage));
+  const canCreateLocation = totalLocations === 0;
 
   const openLocation = (loc: any) => {
     // fetch rabbitries for this location (with cages in each rabbitry)
@@ -561,7 +569,11 @@ export default function LocationsPage() {
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   onClick={() => setShowLocationForm(!showLocationForm)}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                  disabled={!showLocationForm && !canCreateLocation}
+                  title={!showLocationForm && !canCreateLocation ? 'Only one location is supported for now.' : undefined}
+                  className={`px-4 py-2 rounded-lg text-sm ${!showLocationForm && !canCreateLocation
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed dark:bg-gray-700 dark:text-gray-400'
+                    : 'bg-green-600 text-white hover:bg-green-700'}`}
                 >
                   {showLocationForm ? 'Cancel' : '+ Add Location'}
                 </button>

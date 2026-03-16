@@ -79,7 +79,12 @@ export default function RabbitsPage() {
   const getDisplayCount = (batch: any) => {
     const available = getAvailableCount(batch);
     const sexTotal = (batch?.maleCount ?? 0) + (batch?.femaleCount ?? 0);
-    return Math.max(available, sexTotal, batch?.count ?? 0);
+
+    if (batch?.status === 'SEXED') {
+      return Math.max(available, sexTotal);
+    }
+
+    return Math.max(available, batch?.count ?? 0);
   };
   useEffect(() => {
     fetchRabbits();
@@ -1335,12 +1340,21 @@ export default function RabbitsPage() {
                     {batch.status === 'SEXED' && batch.sourceBatchId && (
                       <button
                         onClick={async () => {
-                          if (!(await confirm(`Revert sexing for batches created from source ${batch.batchId}?`))) return;
+                          if (!(await confirm(`Revert sexing for batches created from source ${batch.batchId}?`, {
+                            title: 'Confirm Revert Sexing',
+                            confirmText: 'Revert',
+                            danger: true,
+                            typedConfirmation: {
+                              expectedValue: 'revert',
+                              inputLabel: 'Security key',
+                              helperText: 'Type revert to confirm this action.',
+                            },
+                          }))) return;
                           try {
                             const res = await fetchWithLoading('/api/offspring/revert-sexing', {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ batchId: batch.id }),
+                              body: JSON.stringify({ batchId: batch.id, confirmKey: 'revert' }),
                             });
                             if (res.ok) {
                               fetchOffspring(offspringPage, offspringPageSize);

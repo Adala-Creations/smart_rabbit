@@ -1,12 +1,17 @@
 'use client';
 
-import React, { createContext, useCallback, useContext, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 
 type ConfirmOptions = {
   title?: string;
   confirmText?: string;
   cancelText?: string;
   danger?: boolean;
+  typedConfirmation?: {
+    expectedValue: string;
+    inputLabel?: string;
+    helperText?: string;
+  };
 };
 
 type ConfirmContextType = {
@@ -21,6 +26,8 @@ export const ConfirmProvider = ({ children }: { children: React.ReactNode }) => 
     options?: ConfirmOptions;
     resolver?: (value: boolean) => void;
   } | null>(null);
+  const [typedValue, setTypedValue] = useState('');
+  const typedInputRef = useRef<HTMLInputElement | null>(null);
 
   const confirm = useCallback((message: string, options?: ConfirmOptions) => {
     return new Promise<boolean>((resolve) => {
@@ -28,7 +35,28 @@ export const ConfirmProvider = ({ children }: { children: React.ReactNode }) => 
     });
   }, []);
 
+  useEffect(() => {
+    if (!state) {
+      setTypedValue('');
+      return;
+    }
+
+    if (state.options?.typedConfirmation) {
+      setTypedValue('');
+      const timer = window.setTimeout(() => {
+        typedInputRef.current?.focus();
+      }, 0);
+
+      return () => window.clearTimeout(timer);
+    }
+
+    setTypedValue('');
+  }, [state]);
+
+  const typedConfirmationValid = !state?.options?.typedConfirmation || typedValue === state.options.typedConfirmation.expectedValue;
+
   const handleConfirm = () => {
+    if (!typedConfirmationValid) return;
     if (state && state.resolver) state.resolver(true);
     setState(null);
   };
@@ -47,11 +75,29 @@ export const ConfirmProvider = ({ children }: { children: React.ReactNode }) => 
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">{state.options.title}</h3>
             )}
             <p className="text-gray-700 dark:text-gray-200 mb-4">{state.message}</p>
+            {state.options?.typedConfirmation && (
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-900 dark:text-white mb-1">
+                  {state.options.typedConfirmation.inputLabel ?? 'Type the confirmation key'}
+                </label>
+                <input
+                  ref={typedInputRef}
+                  type="text"
+                  value={typedValue}
+                  onChange={(e) => setTypedValue(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                />
+                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                  {state.options.typedConfirmation.helperText ?? `Type ${state.options.typedConfirmation.expectedValue} to continue.`}
+                </p>
+              </div>
+            )}
             <div className="flex justify-end gap-2">
               <button onClick={handleCancel} className="px-3 py-1 rounded bg-gray-200 dark:bg-gray-700">{state.options?.cancelText ?? 'Cancel'}</button>
               <button
                 onClick={handleConfirm}
-                className={`px-3 py-1 rounded ${state.options?.danger ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}`}>
+                disabled={!typedConfirmationValid}
+                className={`px-3 py-1 rounded ${state.options?.danger ? 'bg-red-600 text-white' : 'bg-green-600 text-white'} ${!typedConfirmationValid ? 'opacity-50 cursor-not-allowed' : ''}`}>
                 {state.options?.confirmText ?? 'Confirm'}
               </button>
             </div>

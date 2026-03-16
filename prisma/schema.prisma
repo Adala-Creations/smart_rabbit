@@ -22,6 +22,7 @@ model User {
   ownedRabbitries   Rabbitry[]       @relation("OwnedRabbitries")
   workerAssignments RabbitryWorker[]
   sessions          Session[]
+  notes             Note[]
 }
 
 model Account {
@@ -140,6 +141,7 @@ model Rabbit {
   offspring         Rabbit[]            @relation("RabbitOffspring")
   sales             Sale[]
   weights           WeightMeasurement[]
+  noteRecords       Note[]
 }
 
 model Mating {
@@ -196,6 +198,23 @@ model OffspringBatch {
   weights             OffspringWeight[]
   sales               Sale[]
   deaths              OffspringDeath[]
+  noteRecords         Note[]
+}
+
+model Note {
+  id          String      @id @default(cuid())
+  title       String
+  content     String
+  type        NoteType
+  subject     NoteSubject @default(NONE)
+  rabbitId    String?
+  batchId     String?
+  userId      String
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  rabbit      Rabbit?     @relation(fields: [rabbitId], references: [id], onDelete: SetNull)
+  batch       OffspringBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model OffspringBatchHealthHistory {
@@ -352,6 +371,19 @@ enum OffspringHealthStatus {
   HEALTHY
   SICK
   INJURED
+}
+
+enum NoteType {
+  GENERAL
+  HEALTH
+  FINANCE
+  OTHER
+}
+
+enum NoteSubject {
+  NONE
+  RABBIT
+  BATCH
 }
 
 enum TransactionType {

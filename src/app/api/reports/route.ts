@@ -33,6 +33,36 @@ function convertToCSV(data: any[], headers: string[]): string {
   return [headers.join(','), ...rows].join('\n');
 }
 
+function getOffspringBatchGender(batch: {
+  maleCount?: number | null;
+  femaleCount?: number | null;
+}) {
+  const maleCount = batch.maleCount ?? 0;
+  const femaleCount = batch.femaleCount ?? 0;
+
+  if (maleCount > 0 && femaleCount === 0) return 'Male';
+  if (femaleCount > 0 && maleCount === 0) return 'Female';
+  if (maleCount > 0 || femaleCount > 0) return `${maleCount}M/${femaleCount}F`;
+
+  return 'Unsexed';
+}
+
+function getOffspringBatchTotal(batch: {
+  status?: string | null;
+  availableCount?: number | null;
+  count?: number | null;
+  maleCount?: number | null;
+  femaleCount?: number | null;
+}) {
+  const sexedTotal = (batch.maleCount ?? 0) + (batch.femaleCount ?? 0);
+
+  if (batch.status === 'SEXED') {
+    return Math.max(0, sexedTotal, batch.availableCount ?? batch.count ?? 0);
+  }
+
+  return Math.max(0, batch.availableCount ?? batch.count ?? 0);
+}
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -83,7 +113,6 @@ export async function GET(request: NextRequest) {
           status: r.status,
           healthStatus: r.healthStatus,
           dateOfBirth: formatDate(r.dateOfBirth),
-          color: r.color,
           count: 1,
           cage: r.cage?.cageId,
           compartment: (r as any)['compartment'],
@@ -123,13 +152,12 @@ export async function GET(request: NextRequest) {
           type: b.status === 'SEXED' ? 'Grower Batch' : 'Kit Batch',
           id: b.batchId,
           name: null,
-          gender: b.maleCount && b.femaleCount ? `${b.maleCount}M/${b.femaleCount}F` : 'Unsexed',
+          gender: getOffspringBatchGender(b),
           breed: b.birth?.mating?.buck?.breed || b.birth?.mating?.doe?.breed || '',
           status: b.status,
           healthStatus: b.overallHealthStatus,
           dateOfBirth: formatDate(b.birth?.birthDate),
-          color: null,
-          count: b.count,
+          count: getOffspringBatchTotal(b),
           cage: b.cage?.cageId,
           compartment: b.compartment,
           location: b.cage?.rabbitry?.location?.name,
@@ -140,7 +168,7 @@ export async function GET(request: NextRequest) {
 
         // Combine rabbits and offspring
         data = [...rabbitRows, ...offspringRows];
-        headers = ['type', 'id', 'name', 'gender', 'breed', 'status', 'healthStatus', 'dateOfBirth', 'color', 'count', 'cage', 'compartment', 'location', 'rabbitry', 'notes', 'createdAt'];
+  headers = ['type', 'id', 'name', 'gender', 'breed', 'status', 'healthStatus', 'dateOfBirth', 'count', 'cage', 'compartment', 'location', 'rabbitry', 'notes', 'createdAt'];
         break;
 
       case 'matings':
@@ -238,19 +266,34 @@ export async function GET(request: NextRequest) {
         // Fetch offspring deaths
         const offspringDeaths = await prisma.offspringDeath.findMany({
           where: dateFilter as any,
-          include: { birth: { include: { mating: { include: { buck: true, doe: true } } } } },
+          include: {
+            batch: {
+              include: {
+                birth: {
+                  include: {
+                    mating: {
+                      include: {
+                        buck: true,
+                        doe: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
         });
         const offspringDeathRows = offspringDeaths.map(od => ({
           type: 'Offspring (Kit)',
           deathDate: formatDate(od.deathDate),
-          id: null,
+          id: od.batch?.batchId || null,
           name: null,
-          breed: od.birth?.mating?.buck?.breed || od.birth?.mating?.doe?.breed || '',
-          gender: null,
+          breed: od.batch?.birth?.mating?.buck?.breed || od.batch?.birth?.mating?.doe?.breed || '',
+          gender: od.batch ? getOffspringBatchGender(od.batch) : null,
           count: od.count,
           ageAtDeath: (() => {
             try {
-              const bd = od.birth?.birthDate;
+              const bd = od.batch?.birth?.birthDate;
               const dd = od.deathDate;
               if (!bd || !dd) return '';
               const b = new Date(bd);
@@ -280,17 +323,32 @@ export async function GET(request: NextRequest) {
         // Keep for backward compatibility
         const offspringDeathsLegacy = await prisma.offspringDeath.findMany({
           where: dateFilter as any,
-          include: { birth: { include: { mating: { include: { buck: true, doe: true } } } } },
+          include: {
+            batch: {
+              include: {
+                birth: {
+                  include: {
+                    mating: {
+                      include: {
+                        buck: true,
+                        doe: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
         });
         data = offspringDeathsLegacy.map(od => ({
-          birthDate: formatDate(od.birth.birthDate),
-          parents: od.birth.mating ? `${od.birth.mating.buck.rabbitId} × ${od.birth.mating.doe.rabbitId}` : '',
+          birthDate: formatDate(od.batch?.birth?.birthDate),
+          parents: od.batch?.birth?.mating ? `${od.batch.birth.mating.buck.rabbitId} × ${od.batch.birth.mating.doe.rabbitId}` : '',
           deathDate: formatDate(od.deathDate),
           count: od.count,
           cause: od.cause,
           ageAtDeath: (() => {
             try {
-              const bd = od.birth?.birthDate;
+              const bd = od.batch?.birth?.birthDate;
               const dd = od.deathDate;
               if (!bd || !dd) return '';
               const b = new Date(bd);
@@ -361,13 +419,16 @@ export async function GET(request: NextRequest) {
           type: 'Sale',
           date: formatDate(s.saleDate),
           description: s.description,
-          category: null,
+          category: 'Income',
           amount: s.amount,
           rabbit: s.rabbit?.rabbitId,
           rabbitName: s.rabbit?.name,
           buyerName: s.buyerName,
           buyerContact: s.buyerContact,
           vendor: null,
+          contact: null,
+          status: null,
+          dueDate: null,
           notes: s.notes,
           createdAt: formatDate(s.createdAt),
         }));
@@ -387,13 +448,105 @@ export async function GET(request: NextRequest) {
           buyerName: null,
           buyerContact: null,
           vendor: e.vendor,
+          contact: null,
+          status: null,
+          dueDate: null,
           notes: e.notes,
           createdAt: formatDate(e.createdAt),
         }));
 
-        // Combine sales and expenses
-        data = [...salesRows, ...expenseRows];
-        headers = ['type', 'date', 'description', 'category', 'amount', 'rabbit', 'rabbitName', 'buyerName', 'buyerContact', 'vendor', 'notes', 'createdAt'];
+        const debtors = await prisma.debtor.findMany({
+          where: dateFilter,
+          orderBy: { createdAt: 'desc' },
+        });
+        const debtorRows = debtors.map((debtor) => ({
+          type: 'Debtor',
+          date: formatDate(debtor.createdAt),
+          description: debtor.description,
+          category: 'Receivable',
+          amount: debtor.amountOwed,
+          rabbit: null,
+          rabbitName: null,
+          buyerName: debtor.name,
+          buyerContact: debtor.contact,
+          vendor: null,
+          contact: debtor.contact,
+          status: debtor.status,
+          dueDate: formatDate(debtor.dueDate),
+          notes: debtor.notes,
+          createdAt: formatDate(debtor.createdAt),
+        }));
+
+        const creditors = await prisma.creditor.findMany({
+          where: dateFilter,
+          orderBy: { createdAt: 'desc' },
+        });
+        const creditorRows = creditors.map((creditor) => ({
+          type: 'Creditor',
+          date: formatDate(creditor.createdAt),
+          description: creditor.description,
+          category: 'Payable',
+          amount: -Math.abs(creditor.amountOwed),
+          rabbit: null,
+          rabbitName: null,
+          buyerName: null,
+          buyerContact: null,
+          vendor: creditor.name,
+          contact: creditor.contact,
+          status: creditor.status,
+          dueDate: formatDate(creditor.dueDate),
+          notes: creditor.notes,
+          createdAt: formatDate(creditor.createdAt),
+        }));
+
+        const totalSales = salesCombined.reduce((sum, sale) => sum + sale.amount, 0);
+        const totalExpenses = expensesCombined.reduce((sum, expense) => sum + expense.amount, 0);
+        const netProfit = totalSales - totalExpenses;
+        const profitRow = {
+          type: 'Profit Summary',
+          date: formatDate(new Date()),
+          description: 'Net profit from recorded sales and expenses',
+          category: 'Summary',
+          amount: +netProfit.toFixed(2),
+          rabbit: null,
+          rabbitName: null,
+          buyerName: null,
+          buyerContact: null,
+          vendor: null,
+          contact: null,
+          status: null,
+          dueDate: null,
+          notes: `Sales: ${totalSales.toFixed(2)}, Expenses: ${totalExpenses.toFixed(2)}`,
+          createdAt: formatDate(new Date()),
+        };
+
+        // Combine sales, expenses, debtors, creditors, and profit summary
+        data = [...salesRows, ...expenseRows, ...debtorRows, ...creditorRows, profitRow];
+        headers = ['type', 'date', 'description', 'category', 'amount', 'rabbit', 'rabbitName', 'buyerName', 'buyerContact', 'vendor', 'contact', 'status', 'dueDate', 'notes', 'createdAt'];
+        break;
+
+      case 'notes':
+        const notes = await prisma.note.findMany({
+          where: dateFilter,
+          include: {
+            rabbit: true,
+            batch: true,
+            user: true,
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+        data = notes.map((n) => ({
+          title: n.title,
+          content: n.content,
+          type: n.type,
+          subject: n.subject,
+          rabbitId: n.rabbit?.rabbitId || null,
+          batchId: n.batch?.batchId || null,
+          userEmail: n.user?.email || null,
+          createdAt: formatDate(n.createdAt),
+          updatedAt: formatDate(n.updatedAt),
+        }));
+        headers = ['title', 'content', 'type', 'subject', 'rabbitId', 'batchId', 'userEmail', 'createdAt', 'updatedAt'];
         break;
 
       case 'locations':
@@ -422,6 +575,11 @@ export async function GET(request: NextRequest) {
               include: { location: true },
             },
             rabbits: true,
+            offspringBatches: {
+              where: {
+                status: { not: 'ARCHIVED' },
+              },
+            },
           },
         });
         data = cages.map(c => ({
@@ -429,7 +587,7 @@ export async function GET(request: NextRequest) {
           type: c.type,
           capacity: c.capacity,
           compartments: c.compartments,
-          currentOccupancy: c.rabbits.length,
+          currentOccupancy: c.rabbits.length + c.offspringBatches.reduce((sum, batch) => sum + getOffspringBatchTotal(batch), 0),
           location: c.rabbitry.location.name,
           rabbitry: c.rabbitry.name,
           description: c.description,

@@ -42,13 +42,14 @@ export default function DashboardLayout({
     { href: '/dashboard/breeding', label: 'Breeding', icon: '💕' },
     { href: '/dashboard/deaths', label: 'Deaths', icon: '⚠️' },
     { href: '/dashboard/finances', label: 'Finances', icon: '💰' },
+    { href: '/dashboard/notes', label: 'Notes', icon: '📝' },
     { href: '/dashboard/locations', label: 'Locations', icon: '📍' },
     { href: '/dashboard/workers', label: 'Workers', icon: '👷' },
     { href: '/dashboard/reports', label: 'Reports', icon: '📄' },
     { href: '/dashboard/profile', label: 'Profile', icon: '👤' },
   ];
   // Desktop should only show the requested subset
-  const desktopNavLinks = fullNavLinks.filter(l => ['Dashboard','Locations','Workers','Reports','Profile'].includes(l.label));
+  const desktopNavLinks = fullNavLinks.filter(l => ['Dashboard','Notes','Locations','Workers','Reports','Profile'].includes(l.label));
 
   return (
     <DashboardRefreshProvider>

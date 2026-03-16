@@ -92,6 +92,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
+    const existingLocationCount = await prisma.location.count({
+      where: { userId: user.id },
+    });
+
+    if (existingLocationCount > 0) {
+      return NextResponse.json(
+        { error: 'Only one location is supported for now.' },
+        { status: 400 }
+      );
+    }
+
     const { name, description, type, address } = await req.json();
 
     if (!name || !type) {

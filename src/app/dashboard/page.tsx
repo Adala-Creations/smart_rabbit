@@ -59,7 +59,12 @@ function DashboardContent() {
   const getDisplayCount = (batch: any) => {
     const available = getAvailableCount(batch);
     const sexTotal = (batch?.maleCount ?? 0) + (batch?.femaleCount ?? 0);
-    return Math.max(available, sexTotal, batch?.count ?? 0);
+
+    if (batch?.status === 'SEXED') {
+      return Math.max(available, sexTotal);
+    }
+
+    return Math.max(available, batch?.count ?? 0);
   };
 
   const fetchStats = async () => {
@@ -263,13 +268,13 @@ function DashboardContent() {
               <span className="hidden sm:inline">Active: </span>
               <span className="font-semibold">{activeLocation.name}</span>
             </span>
-            <Link 
+            {/* <Link 
               href="/dashboard/locations" 
               className="whitespace-nowrap text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 text-sm"
               title="Change Location"
             >
-              (Change)
-            </Link>
+              
+            </Link> */}
           </div>
         ) : (
           <Link 
@@ -522,11 +527,11 @@ function DashboardContent() {
             <span className="text-sm font-medium text-gray-900 dark:text-white">Record Mating</span>
           </Link>
           <Link
-            href="/dashboard/locations?action=add"
+            href="/dashboard/notes?action=add"
             className="flex flex-col items-center justify-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
           >
-            <span className="text-3xl mb-2">📍</span>
-            <span className="text-sm font-medium text-gray-900 dark:text-white">Add Location</span>
+            <span className="text-3xl mb-2">📝</span>
+            <span className="text-sm font-medium text-gray-900 dark:text-white">Add Note</span>
           </Link>
           <Link
             href="/dashboard/finances?action=add"

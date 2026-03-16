@@ -20,6 +20,62 @@ import {
   ResponsiveContainer
 } from 'recharts';
 
+const REPORT_OPTIONS = [
+  { value: 'all', label: 'ALL Records' },
+  { value: 'rabbits-inventory', label: 'Rabbits Inventory (Adults + Offspring)' },
+  { value: 'matings', label: 'Mating Records' },
+  { value: 'births', label: 'Birth Records' },
+  { value: 'death-records', label: 'Death Records (Adults + Offspring)' },
+  { value: 'finance-records', label: 'Finance Records (Sales + Expenses + Debtors + Creditors + Profit)' },
+  { value: 'notes', label: 'Notes Records' },
+  { value: 'cages', label: 'Cages' },
+  { value: 'workers', label: 'Workers' },
+  { value: 'health', label: 'Offspring Health History' },
+] as const;
+
+const ALL_REPORT_EXPORT_TYPES = REPORT_OPTIONS
+  .map((option) => option.value)
+  .filter((value) => value !== 'all');
+
+const REPORT_TITLE_MAP: Record<string, string> = {
+  all: 'All Records',
+  'rabbits-inventory': 'Rabbits Inventory Report',
+  matings: 'Mating Records Report',
+  births: 'Birth Records Report',
+  'death-records': 'Death Records Report',
+  'finance-records': 'Finance Records Report',
+  notes: 'Notes Report',
+  cages: 'Cages Report',
+  workers: 'Workers Report',
+  health: 'Offspring Health History Report',
+};
+
+const escapeCsvValue = (value: unknown) => {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'object') {
+    return `"${JSON.stringify(value).replace(/"/g, '""')}"`;
+  }
+
+  return `"${String(value).replace(/"/g, '""')}"`;
+};
+
+const jsonToCsv = (rows: any[]) => {
+  if (!rows.length) return 'No records found';
+
+  const headers = Array.from(
+    rows.reduce((set, row) => {
+      Object.keys(row ?? {}).forEach((key) => set.add(key));
+      return set;
+    }, new Set<string>())
+  );
+
+  const csvRows = rows.map((row) =>
+    headers.map((header) => escapeCsvValue(row?.[header])).join(',')
+  );
+
+  return [headers.join(','), ...csvRows].join('\n');
+};
+
 export default function ReportsPage() {
   const toast = useToast();
   const [reportType, setReportType] = useState('rabbits-inventory');
@@ -203,31 +259,66 @@ export default function ReportsPage() {
     load();
   }, [showAnalysis]);
 
+  const buildReportParams = (type: string) => new URLSearchParams({
+    type,
+    format,
+    ...(dateFrom && { dateFrom }),
+    ...(dateTo && { dateTo }),
+  });
+
+  const downloadBlob = (blob: Blob, filename: string) => {
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  };
+
+  const fetchReportJson = async (type: string) => {
+    const params = buildReportParams(type);
+    params.set('format', 'json');
+    const response = await fetchWithLoading(`/api/reports?${params}`);
+
+    if (!response.ok) {
+      throw new Error(`Failed to generate ${type} report`);
+    }
+
+    return response.json();
+  };
+
   const exportData = async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({
-        type: reportType,
-        format,
-        ...(dateFrom && { dateFrom }),
-        ...(dateTo && { dateTo }),
-      });
+      if (reportType === 'all') {
+        const sections = await Promise.all(
+          ALL_REPORT_EXPORT_TYPES.map(async (type) => {
+            const data = await fetchReportJson(type);
+            const rows = Array.isArray(data) ? data : [];
+            return [
+              `Report: ${REPORT_TITLE_MAP[type]}`,
+              jsonToCsv(rows),
+              '',
+            ].join('\n');
+          })
+        );
 
+        const blob = new Blob([sections.join('\n')], { type: 'text/csv' });
+        downloadBlob(blob, `all_records_report_${new Date().toISOString().split('T')[0]}.csv`);
+        return;
+      }
+
+      const params = buildReportParams(reportType);
       const response = await fetchWithLoading(`/api/reports?${params}`);
-      
+
       if (!response.ok) {
         throw new Error('Failed to generate report');
       }
 
       const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${reportType}_report_${new Date().toISOString().split('T')[0]}.${format}`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      downloadBlob(blob, `${reportType}_report_${new Date().toISOString().split('T')[0]}.${format}`);
     } catch (error) {
       console.error('Error exporting data:', error);
       toast.pushToast({ message: 'Failed to export data', type: 'error' });
@@ -263,144 +354,30 @@ export default function ReportsPage() {
         const res = await fetchWithLoading(url); return res.ok ? res.json() : [];
       };
       switch (reportType) {
+        case 'all':
+          data = Object.fromEntries(
+            await Promise.all(
+              ALL_REPORT_EXPORT_TYPES.map(async (type) => [type, await fetchReportJson(type)])
+            )
+          );
+          break;
         case 'rabbits':
         case 'rabbits-inventory':
-          // Fetch both rabbits and offspring
-          const [rabbits, offspring] = await Promise.all([
-            fetchJson('/api/rabbits'),
-            fetchJson('/api/offspring'),
-          ]);
-          const offspringBatches = Array.isArray(offspring)
-            ? offspring
-            : (offspring?.items || []);
-          // Combine into single array
-          data = [
-            ...(Array.isArray(rabbits) ? rabbits : []).map((r: any) => ({
-              type: 'Adult Rabbit',
-              id: r.rabbitId,
-              name: r.name,
-              gender: r.gender,
-              breed: r.breed,
-              status: r.status,
-              healthStatus: r.healthStatus,
-              dateOfBirth: r.dateOfBirth,
-              color: r.color,
-              count: 1,
-              cage: r.cage?.cageId,
-              compartment: r.compartment,
-              location: r.cage?.rabbitry?.location?.name,
-              rabbitry: r.cage?.rabbitry?.name,
-              notes: r.notes,
-            })),
-            ...offspringBatches
-              .filter((b: any) => b.status !== 'ARCHIVED')
-              .map((b: any) => ({
-                type: b.status === 'SEXED' ? 'Grower Batch' : 'Kit Batch',
-                id: b.batchId,
-                name: null,
-                gender:
-                  b.maleCount && b.femaleCount
-                    ? `${b.maleCount}M/${b.femaleCount}F`
-                    : 'Unsexed',
-                breed:
-                  b.birth?.mating?.buck?.breed || b.birth?.mating?.doe?.breed || '',
-                status: b.status,
-                healthStatus: b.overallHealthStatus,
-                dateOfBirth: b.birth?.birthDate,
-                color: null,
-                count: b.availableCount ?? b.count,
-                cage: b.cage?.cageId,
-                compartment: b.compartment,
-                location: b.cage?.rabbitry?.location?.name,
-                rabbitry: b.cage?.rabbitry?.name,
-                notes: b.notes,
-              })),
-          ];
+          data = await fetchReportJson('rabbits-inventory');
           break;
         case 'matings': data = await fetchJson('/api/matings'); break;
         case 'births': data = await fetchJson('/api/births'); break;
         case 'deaths':
         case 'death-records':
-          // Fetch both adult deaths and offspring deaths
-          const [deaths, offspringDeaths] = await Promise.all([
-            fetchJson('/api/deaths'),
-            fetchJson('/api/offspring-deaths'),
-          ]);
-          data = [
-            ...(Array.isArray(deaths) ? deaths : []).map((d: any) => ({
-              type: 'Adult Rabbit',
-              deathDate: d.deathDate,
-              id: d.rabbit?.rabbitId || d.rabbitId,
-              name: d.rabbit?.name,
-              breed: d.rabbit?.breed,
-              gender: d.rabbit?.gender,
-              count: 1,
-              cause: d.cause,
-              notes: d.notes,
-            })),
-            ...(Array.isArray(offspringDeaths) ? offspringDeaths : []).map((od: any) => ({
-              type: 'Offspring (Kit)',
-              deathDate: od.deathDate,
-              id: null,
-              name: null,
-              breed: od.birth?.mating?.buck?.breed || od.birth?.mating?.doe?.breed || '',
-              gender: null,
-              count: od.count,
-              cause: od.cause,
-              notes: od.notes,
-            })),
-          ];
+          data = await fetchReportJson('death-records');
           break;
         case 'finance-records':
-          // Fetch both sales and expenses
-          const [sales, expenses] = await Promise.all([
-            fetchJson('/api/sales'),
-            fetchJson('/api/expenses'),
-          ]);
-          data = [
-            ...(Array.isArray(sales) ? sales : []).map((s: any) => ({
-              type: 'Sale',
-              date: s.saleDate,
-              description: s.description,
-              category: null,
-              amount: s.amount,
-              rabbit: s.rabbit?.rabbitId || s.rabbitId,
-              buyerName: s.buyerName,
-              buyerContact: s.buyerContact,
-              vendor: null,
-              notes: s.notes,
-            })),
-            ...(Array.isArray(expenses) ? expenses : []).map((e: any) => ({
-              type: 'Expense',
-              date: e.expenseDate,
-              description: e.description,
-              category: e.category,
-              amount: -Math.abs(e.amount), // Negative for expenses
-              rabbit: null,
-              buyerName: null,
-              buyerContact: null,
-              vendor: e.vendor,
-              notes: e.notes,
-            })),
-          ];
+          data = await fetchReportJson('finance-records');
           break;
-        case 'locations': data = await fetchJson('/api/locations'); break;
-        case 'cages': data = await fetchJson('/api/cages'); break;
-        case 'workers': data = await fetchJson('/api/workers'); break;
-        case 'health':
-          // Fetch offspring batches including health history for Word export
-          const offspringHealth = await fetchJson('/api/offspring');
-          // Flatten health history entries
-          const offspringBatchesHealth = Array.isArray(offspringHealth) ? offspringHealth : (offspringHealth?.items || []);
-          data = offspringBatchesHealth.flatMap((b:any) =>
-            (b.healthHistory || []).map((h:any) => ({
-              batchId: b.batchId,
-              status: h.status,
-              notes: h.notes,
-              createdAt: h.createdAt,
-            }))
-          );
-          break;
+        case 'notes': data = await fetchReportJson('notes'); break;
+        case 'cages': data = await fetchReportJson('cages'); break;
+        case 'workers': data = await fetchReportJson('workers'); break;
+        case 'health': data = await fetchReportJson('health'); break;
         case 'complete':
           data = {
             rabbits: await fetchJson('/api/rabbits'),
@@ -409,7 +386,6 @@ export default function ReportsPage() {
             deaths: await fetchJson('/api/deaths'),
             sales: await fetchJson('/api/sales'),
             expenses: await fetchJson('/api/expenses'),
-            locations: await fetchJson('/api/locations'),
             cages: await fetchJson('/api/cages'),
             workers: await fetchJson('/api/workers'),
           };
@@ -418,12 +394,7 @@ export default function ReportsPage() {
 
       const today = new Date();
       const dateStr = today.toISOString().split('T')[0];
-      const reportTitleMap: Record<string, string> = {
-        'rabbits-inventory': 'Rabbits Inventory Report',
-        'death-records': 'Death Records Report',
-        'finance-records': 'Finance Records Report',
-      };
-      const title = reportTitleMap[reportType] || `${reportType.charAt(0).toUpperCase()+reportType.slice(1).replace(/-/g, ' ')} Report - ${dateStr}`;
+      const title = REPORT_TITLE_MAP[reportType] || `${reportType.charAt(0).toUpperCase()+reportType.slice(1).replace(/-/g, ' ')} Report - ${dateStr}`;
       const docSections: any[] = [];
       const addPara = (text: string, opts: any = {}) => docSections.push(new Paragraph({ children:[ new TextRun({ text }) ], ...opts }));
 
@@ -431,7 +402,27 @@ export default function ReportsPage() {
       addPara('Generated on: ' + today.toLocaleString());
       addPara('');
 
-      if (reportType === 'complete') {
+      if (reportType === 'all') {
+        Object.entries(data).forEach(([key, value]) => {
+          const rows = Array.isArray(value) ? value : [];
+          addPara(REPORT_TITLE_MAP[key] || key, { heading: HeadingLevel.HEADING_2 });
+          addPara(`Record count: ${rows.length}`);
+          addPara('');
+          if (!rows.length) {
+            addPara('No data available');
+            addPara('');
+            return;
+          }
+
+          rows.slice(0, 500).forEach((item: any, idx: number) => {
+            const summary = Object.entries(item)
+              .map(([field, value]) => `${field}: ${value === null || value === undefined ? '-' : typeof value === 'string' ? value : value instanceof Date ? value.toISOString() : JSON.stringify(value)}`)
+              .join(' | ');
+            addPara(`${idx + 1}. ${summary}`);
+          });
+          addPara('');
+        });
+      } else if (reportType === 'complete') {
         Object.keys(data).forEach(key => {
           const arr = (data as any)[key];
           addPara(key.toUpperCase(), { heading: HeadingLevel.HEADING_2 });
@@ -649,15 +640,9 @@ export default function ReportsPage() {
               onChange={(e) => setReportType(e.target.value)}
               className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             >
-              <option value="rabbits-inventory">Rabbits Inventory (Adults + Offspring)</option>
-              <option value="matings">Mating Records</option>
-              <option value="births">Birth Records</option>
-              <option value="death-records">Death Records (Adults + Offspring)</option>
-              <option value="finance-records">Finance Records (Sales + Expenses)</option>
-              <option value="locations">Locations</option>
-              <option value="cages">Cages</option>
-              <option value="workers">Workers</option>
-              <option value="health">Offspring Health History</option>
+              {REPORT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
             </select>
           </div>
 
@@ -713,6 +698,7 @@ export default function ReportsPage() {
           <ul className="text-sm text-blue-800 dark:text-blue-300 space-y-1">
             <li>• CSV files can be opened in Excel or Google Sheets</li>
             <li>• Word (.docx) export provides human‑readable summaries</li>
+            <li>• Select ALL Records to download every report type in one file</li>
             <li>• Date filters apply to created/recorded dates</li>
           </ul>
         </div>
@@ -723,7 +709,7 @@ export default function ReportsPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mt-4 sm:mt-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Available Reports</h3>
-          <p className="text-3xl font-bold text-blue-600">8</p>
+          <p className="text-3xl font-bold text-blue-600">{REPORT_OPTIONS.length}</p>
           <p className="text-sm text-gray-500 dark:text-gray-400">Different report types</p>
         </div>
 
