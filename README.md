@@ -2,6 +2,10 @@
 
 A comprehensive rabbit farm management system built with Next.js, TypeScript, and PostgreSQL. Perfect for rabbit farmers from small-scale to large-scale operations.
 
+## UI Handoff Guide
+
+For mobile frontend mirroring and screen/flow mapping, see `UI_README.md`.
+
 ## Features
 
 ### 🐰 Rabbit Management
